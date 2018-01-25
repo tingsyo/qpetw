@@ -4,25 +4,37 @@
 Test script of using Keras to implement a 1D convolutional neural network (CNN) for regression.
 """
 import os, csv, logging, argparse
+from tempfile import mkdtemp
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA, IncrementalPCA
 
-def read_dbz(srcdir):
+def search_dbz(srcdir):
     fileinfo = []
     results = []
     for subdir, dirs, files in os.walk(srcdir, followlinks=True):
         for f in files:
             if f.endswith('.txt'):
-                logging.debug(f)
                 # Parse file name for time information
+                furi = os.path.join(subdir, f)
                 finfo = f.split('.')
-                fileinfo.append(finfo[1:3])
-                # Read data through pandas.read_fwf
-                tmp = pd.read_fwf(os.path.join(subdir, f), widths=[8,8,8], header=None)
-                results.append(tmp.iloc[:,2])
-    return((fileinfo, np.array(results)))
+                logging.debug([furi] + finfo[1:3])
+                fileinfo.append([furi] + finfo[1:3])
+    return(fileinfo)
 
+def read_dbz(furi):
+    tmp = pd.read_fwf(furi, widths=[8,8,8], header=None, dtype=np.float32)
+    results = np.array(tmp.iloc[:,2])
+    return(results)
+    
+def read_dbz_memmap(finfo):
+    tmpfile = os.path.join(mkdtemp(),'dbz.dat')
+    dbz = np.memmap(filename, dtype='float32', mode='w+')
+    for f in finfo:
+        logging.debug('Reading data from: ' + f[0])
+        tmp = read_dbz(f[0])
+        
+    return(dbz)
 
 def writeToCsv(output, fname):
     # Overwrite the output file:
@@ -46,8 +58,10 @@ def main():
     args = parser.parse_args()
     # Set up logging
     logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
-    # Read iodata
-    finfo, dbz = read_dbz(args.input)
+    # Scan files for reading
+    finfo = search_dbz(args.input)
+    # Read into numpy.memmap
+    dbz = read_dbz_memmap(finfo)
     # Process dbz data with Incremental PCA
     ipca = IncrementalPCA(n_components=args.n_components, batch_size=200)
     dbz_ipca = ipca.fit_transform(dbz)
