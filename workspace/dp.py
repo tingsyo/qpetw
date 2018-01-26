@@ -23,17 +23,23 @@ def search_dbz(srcdir):
     return(fileinfo)
 
 def read_dbz(furi):
-    tmp = pd.read_fwf(furi, widths=[8,8,8], header=None, dtype=np.float32)
-    results = np.array(tmp.iloc[:,2])
+    tmp = pd.read_fwf(furi, widths=[8,8,8], header=None)
+    results = np.float32(np.array(tmp.iloc[:,2]))
     return(results)
     
 def read_dbz_memmap(finfo):
-    tmpfile = os.path.join(mkdtemp(),'dbz.dat')
-    dbz = np.memmap(filename, dtype='float32', mode='w+')
+    tmpfile = 'dbz.dat'
+    dbz = None
     for f in finfo:
         logging.debug('Reading data from: ' + f[0])
         tmp = read_dbz(f[0])
-        
+        if dbz is None:
+            logging.debug("Start memmap with shape: "+ str(tmp.shape))
+            dbz = np.memmap(tmpfile, dtype='float32', mode='w+', shape=tmp.shape)
+            dbz = tmp
+        else:
+            dbz = np.vstack((dbz, tmp))
+            logging.debug("Appending numpy.memmap: "+ str(dbz.shape))
     return(dbz)
 
 def writeToCsv(output, fname):
@@ -63,10 +69,11 @@ def main():
     # Read into numpy.memmap
     dbz = read_dbz_memmap(finfo)
     # Process dbz data with Incremental PCA
-    ipca = IncrementalPCA(n_components=args.n_components, batch_size=200)
+    ipca = IncrementalPCA(n_components=args.n_components, batch_size=100)
     dbz_ipca = ipca.fit_transform(dbz)
     evr = ipca.explained_variance_ratio_
     com = ipca.components_
+    print("Explained variance ratio: "+ str(evr))
     # Output components and projections
     output = []
     for i in range(len(evr)):
@@ -74,8 +81,8 @@ def main():
     writeToCsv(output, args.output.replace('.csv','.components.csv'))
     # Append date and projections
     newrecs = []
-    for i in range(len(recs['date'])):
-        newrecs.append([recs['date'][i]] + list(dbz_ipca[i]))
+    for i in range(len(finfo)):
+        newrecs.append(finfo[i][1:3] + list(dbz_ipca[i]))
     # Output
     writeToCsv(newrecs, args.output)
     # done
