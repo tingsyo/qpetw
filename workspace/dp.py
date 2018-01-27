@@ -27,19 +27,26 @@ def read_dbz(furi):
     results = np.float32(np.array(tmp.iloc[:,2]))
     return(results)
     
-def read_dbz_memmap(finfo):
-    tmpfile = 'dbz.dat'
+def read_dbz_memmap(finfo, tmpfile='dbz.dat', flush_cycle=144):
     dbz = None
+    fcount = 0
     for f in finfo:
         logging.debug('Reading data from: ' + f[0])
         tmp = read_dbz(f[0])
+        # Add first record
         if dbz is None:
             logging.debug("Start memmap with shape: "+ str(tmp.shape))
             dbz = np.memmap(tmpfile, dtype='float32', mode='w+', shape=tmp.shape)
             dbz = tmp
+        # Append new record
         else:
             dbz = np.vstack((dbz, tmp))
             logging.debug("Appending numpy.memmap: "+ str(dbz.shape))
+        # Flush memmap everry flush_cycle
+        fcount++
+        if fcount==flush_cycle:
+            fcount = 0
+            dbz.flush()
     return(dbz)
 
 def writeToCsv(output, fname):
