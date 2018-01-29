@@ -43,8 +43,9 @@ def read_dbz_memmap(finfo, tmpfile='dbz.dat', flush_cycle=144):
             dbz = np.vstack((dbz, tmp))
             logging.debug("Appending numpy.memmap: "+ str(dbz.shape))
         # Flush memmap everry flush_cycle
-        fcount++
+        fcount+=1
         if fcount==flush_cycle:
+            logging.debug("Flush memmap.")
             fcount = 0
             dbz.flush()
     return(dbz)
@@ -74,13 +75,15 @@ def main():
     # Scan files for reading
     finfo = search_dbz(args.input)
     # Read into numpy.memmap
+    logging.info("Extract data from all files: "+ str(len(finfo)))
     dbz = read_dbz_memmap(finfo)
     # Process dbz data with Incremental PCA
+    logging.info("Performing IncrementalPCA with "+ str(args.n_components)+" components.")
     ipca = IncrementalPCA(n_components=args.n_components, batch_size=100)
     dbz_ipca = ipca.fit_transform(dbz)
     evr = ipca.explained_variance_ratio_
     com = ipca.components_
-    print("Explained variance ratio: "+ str(evr))
+    logging.debug("Explained variance ratio: "+ str(evr))
     # Output components and projections
     output = []
     for i in range(len(evr)):
