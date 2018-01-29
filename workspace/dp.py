@@ -18,7 +18,7 @@ def search_dbz(srcdir):
                 # Parse file name for time information
                 furi = os.path.join(subdir, f)
                 finfo = f.split('.')
-                logging.debug([furi] + finfo[1:3])
+                #logging.debug([furi] + finfo[1:3])
                 fileinfo.append([furi] + finfo[1:3])
     return(fileinfo)
 
@@ -27,27 +27,30 @@ def read_dbz(furi):
     results = np.float32(np.array(tmp.iloc[:,2]))
     return(results)
     
-def read_dbz_memmap(finfo, tmpfile='dbz.dat', flush_cycle=144):
+def read_dbz_memmap(finfo, tmpfile='dbz.dat', flush_cycle=14400):
     dbz = None
     fcount = 0
-    for f in finfo:
+    # Setup numpy.memmap for storage
+    tmp = read_dbz(finfo[0][0])
+    logging.info("Start memmap with shape: ("+ str(len(finfo)) + "," + str(len(tmp)) +")")
+    dbz = np.memmap(tmpfile, dtype='float32', mode='w+', shape=(len(finfo), len(tmp)))
+    # Add 1st record
+    dbz[0,:] = tmp[:]
+    # Loop through finfo
+    for i in range(1,len(finfo)):
+        f = finfo[i]
         logging.debug('Reading data from: ' + f[0])
         tmp = read_dbz(f[0])
-        # Add first record
-        if dbz is None:
-            logging.debug("Start memmap with shape: "+ str(tmp.shape))
-            dbz = np.memmap(tmpfile, dtype='float32', mode='w+', shape=tmp.shape)
-            dbz = tmp
         # Append new record
-        else:
-            dbz = np.vstack((dbz, tmp))
-            logging.debug("Appending numpy.memmap: "+ str(dbz.shape))
+        dbz[i,:] = tmp[:]
         # Flush memmap everry flush_cycle
         fcount+=1
         if fcount==flush_cycle:
-            logging.debug("Flush memmap.")
+            logging.debug("Flush memmap: "+str(fcount)+" | "+str(i))
             fcount = 0
             dbz.flush()
+        # Save changes of the storage file
+        dbz.flush()
     return(dbz)
 
 def writeToCsv(output, fname):
@@ -66,8 +69,9 @@ def main():
     parser = argparse.ArgumentParser(description='Retrieve DBZ data for further processing.')
     parser.add_argument('--input', '-i', help='the directory containing all the DBZ data.')
     parser.add_argument('--output', '-o', default='output.csv', help='the output file.')
-    parser.add_argument('--n_components', '-n', default=50, type=int, help='number of component to output.')
-    parser.add_argument("-r", "--randomseed", help="integer as the random seed", default="12321")
+    parser.add_argument('--n_components', '-n', default=20, type=int, help='number of component to output.')
+    parser.add_argument('--batch_size', '-b', default=100, type=int, help='number of component to output.')
+    parser.add_argument('--randomseed', '-r', help="integer as the random seed", default="1234543")
     parser.add_argument('--log', '-l', default='tmp.log', help='the log file.')
     args = parser.parse_args()
     # Set up logging
@@ -79,7 +83,7 @@ def main():
     dbz = read_dbz_memmap(finfo)
     # Process dbz data with Incremental PCA
     logging.info("Performing IncrementalPCA with "+ str(args.n_components)+" components.")
-    ipca = IncrementalPCA(n_components=args.n_components, batch_size=100)
+    ipca = IncrementalPCA(n_components=args.n_components, batch_size=args.batch_size)
     dbz_ipca = ipca.fit_transform(dbz)
     evr = ipca.explained_variance_ratio_
     com = ipca.components_
