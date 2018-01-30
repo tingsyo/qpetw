@@ -56,7 +56,7 @@ def read_dbz_memmap(finfo, tmpfile='dbz.dat', flush_cycle=14400):
 def writeToCsv(output, fname):
     # Overwrite the output file:
     with open(fname, 'w', newline='', encoding='utf-8-sig') as csvfile:
-        writer = csv.writer(csvfile, delimiter=',')#,quotechar='"', quoting=csv.QUOTE_ALL)
+        writer = csv.writer(csvfile, delimiter=',',quotechar='"', quoting=csv.QUOTE_ALL)
         for r in output:
             writer.writerow(r)
     return(0)
@@ -86,15 +86,13 @@ def main():
     ipca = IncrementalPCA(n_components=args.n_components, batch_size=args.batch_size)
     dbz_ipca = ipca.fit_transform(dbz)
     evr = ipca.explained_variance_ratio_
-    com = ipca.components_
+    com = np.transpose(ipca.components_)
     logging.debug("Explained variance ratio: "+ str(evr))
-    # Output components and projections
-    output = []
-    for i in range(len(evr)):
-        output.append([evr[i]]+com[i])
-    writeToCsv(output, args.output.replace('.csv','.components.csv'))
+    # Output components
+    com_header = ['pc'+str(x+1) for x in range(args.n_components)]
+    np.insert(com, 0, com_header, axis=0)
+    writeToCsv(com, args.output.replace('.csv','.components.csv'))
     # Append date and projections
-    newrecs = []
     for i in range(len(finfo)):
         newrecs.append(finfo[i][1:3] + list(dbz_ipca[i]))
     # Output
