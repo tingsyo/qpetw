@@ -23,8 +23,12 @@ def search_dbz(srcdir):
     return(fileinfo)
 
 def read_dbz(furi):
-    tmp = pd.read_fwf(furi, widths=[8,8,8], header=None)
-    results = np.float32(np.array(tmp.iloc[:,2]))
+    results = None
+    try:
+        tmp = pd.read_fwf(furi, widths=[8,8,8], header=None)
+        results = np.float32(np.array(tmp.iloc[:,2]))
+    except pd.errors.EmptyDataError:
+        logging.warning(furi + " is empty.")
     return(results)
     
 def read_dbz_memmap(finfo, tmpfile='dbz.dat', flush_cycle=14400):
@@ -42,15 +46,18 @@ def read_dbz_memmap(finfo, tmpfile='dbz.dat', flush_cycle=14400):
         logging.debug('Reading data from: ' + f[0])
         tmp = read_dbz(f[0])
         # Append new record
-        dbz[i,:] = tmp[:]
+        if tmp is None:     # Copy the previous record if new record is empty
+            dbz[i,:] = dbz[(i-1),:]
+        else:
+            dbz[i,:] = tmp[:]
         # Flush memmap everry flush_cycle
         fcount+=1
         if fcount==flush_cycle:
             logging.debug("Flush memmap: "+str(fcount)+" | "+str(i))
             fcount = 0
             dbz.flush()
-        # Save changes of the storage file
-        dbz.flush()
+    # Save changes of the storage file
+    dbz.flush()
     return(dbz)
 
 def writeToCsv(output, fname):
