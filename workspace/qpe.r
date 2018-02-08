@@ -2,6 +2,10 @@
 # Description:
 #    Functions to perfrom QPE from radar data
 
+
+
+
+
 create.output <- function(fname, filter.year=NULL){
   tmp <- read.csv(fname, stringsAsFactors=F, na.strings=c("NA","-999", " "), encoding="big5")
   tmp <- tmp[,c("date","X1.hr")]
@@ -33,7 +37,19 @@ dbz.flist <- function(srcdir){
   return(output)
 }
 
-create.input <- function(srcdir, filter.year=NULL){
+read.radar <- function(f){
+  tmp <- read.fwf(fname, c(8,8,8), header=F, col.names=c("lat","lon","dbz"))
+  return(tmp)
+}
+
+read.dbzpcs <- function(fname, npc=20){
+  tmp <- read.csv("dbz.ipca50.csv", stringsAsFactors = F, header=F, colClasses = c("character","character",rep("numeric", npc)))
+  names(tmp) <- c("date","hhmm",paste("pc", 1:npc, sep="_"))
+  return(tmp[,1:(npc+2)])
+}
+
+
+create.input <- function(y, x, filter.year=NULL){
   # Table for hour-minute correspondence
   hhlist <- c("00","01","02","03","04","05","06","07","08","09","10","11",
               "12","13","14","15","16","17","18","19","20","21","22","23")
@@ -41,57 +57,39 @@ create.input <- function(srcdir, filter.year=NULL){
   hhmm <- NULL
   for(h in hhlist){hhmm <- c(hhmm, paste0(h, mmlist))}
   hhmm <- matrix(hhmm, ncol=6, byrow=T)
-  # Get all files parsed
-  flist <- list.files(srcdir, recursive=T)
-  ftab <- do.call(rbind, lapply(flist, function(x){unlist(strsplit(x,'.', fixed=T))}))
-  ftab[,1] <- paste(srcdir, ftab[,1], sep="/")
-  ftab <- data.frame(ftab, stringsAsFactors=FALSE)
-  names(ftab) <- c("prefix","date","hhmm","ext")
-  # Generate file look-up table datadic
-  days <- sort(unique(ftab$date))
-  datadic <- NULL
-  for(d in days){
-    for(h in 1:nrow(hhmm)){
-      for(m in 1:ncol(hhmm)){
-        # Check the existence of the file
-        idx <- which(ftab$date==d & ftab$hhmm==hhmm[h,m])
-        furi <- ""
-        # Insert file url if it existed
-        if(!identical(idx, integer(0))){
-          furi <- paste(ftab[idx,], collapse=".")
-        }
-        datadic <- rbind(datadic, c(d, hhlist[h], mmlist[m], furi))
-      }
-      # Read data for each hour
-      f.hourly <- datadic[which(datadic[,1]==d & datadic[,2]==hhlist[h]),]
-      print(f.hourly)
+  # Target hour
+  thh <- c("01","02","03","04","05","06","07","08","09","10","11","12",
+           "13","14","15","16","17","18","19","20","21","22","23","24")
+  # target day-hour
+  ydays <- sort(unique(substr(y$date,1,8)))
+  newx <- NULL
+  for(i in 1:nrow(y)){
+    # Process date-hour string
+    ydh <- y$date[i]                # YYYYMMDDHH string
+    yday <- substr(ydh,1,8)         # YYYYMMDD
+    yhh <- substr(ydh,9,10)         # HH
+    idx.day <- which(ydays==yday)   # Index of YYYYMMDD
+    idx.h <- which(thh==yhh)        # Index of HH
+    # Find corresponding X
+    ridx.x <- which((x[,1]==yday) & (x[,2] %in% hhmm[idx.h,]))
+    # Concatenate all x as the new x
+    print(ydh)
+    #print(length(ridx.x))
+    #print(x[ridx.x, 1:2])
+    if(length(ridx.x)==6){
+      rec <- as.vector(t(x[ridx.x, -(1:2)]))
+      #print(length(rec))
+    } else {
+      print("missing data")
+      rec <- rep(NA, 6*(ncol(x)-2))
     }
+    newx <- rbind(newx, rec)
   }
-  # 
-  return(datadic)
-}
-
-
-read.radar <- function(fname){
-  tmp <- read.fwf(fname, c(8,8,8), header=F, col.names=c("lat","lon","dbz"))
-  return(tmp)
-}
-
-# Perform dimension reduction with rPCA
-reddim.dbz <- function(srcdir, k=5){
-  require(rsvd)
-  # Get all files
-  flist <- paste(srcdir, list.files(srcdir, recursive = T), sep="/")
-  # Read files
-  raw <- NULL
-  for(f in flist){
-    print(paste("Reading file", f,"..."))
-    t <- system.time(tmp <- read.radar(f))
-    print(t)
-    raw <- rbind(raw, tmp$dbz)
-  }
-  # Run rPCA, scale=F in case some grid values are always 0
-  tmp <- rpca(raw, k = k, center=T, scale=F)
+  # Create colnames
+  newx <- data.frame(newx)
+  pcn <- names(x)[-(1:2)]
+  ts <- paste0("m", seq(60,10,-10))
+  names(newx) <- apply(expand.grid(pcn, ts), 1, paste, collapse="_")
   #
-  return(raw)
+  return(cbind(y,newx))
 }
