@@ -60,10 +60,12 @@ def read_dbz_memmap(finfo, tmpfile='dbz.dat', flush_cycle=14400):
     dbz.flush()
     return(dbz)
 
-def writeToCsv(output, fname):
+def writeToCsv(output, fname, header=None):
     # Overwrite the output file:
     with open(fname, 'w', newline='', encoding='utf-8-sig') as csvfile:
         writer = csv.writer(csvfile, delimiter=',',quotechar='"', quoting=csv.QUOTE_ALL)
+        if header is not None:
+            writer.writerow(header)
         for r in output:
             writer.writerow(r)
     return(0)
@@ -97,8 +99,8 @@ def main():
     logging.debug("Explained variance ratio: "+ str(evr))
     # Output components
     com_header = ['pc'+str(x+1) for x in range(args.n_components)]
-    np.insert(com, 0, com_header, axis=0)
-    writeToCsv(com, args.output.replace('.csv','.components.csv'))
+    #np.insert(com, 0, com_header, axis=0)
+    writeToCsv(com, args.output.replace('.csv','.components.csv'), header=com_header)
     # Append date and projections
     for i in range(len(finfo)):
         newrecs.append(finfo[i][1:3] + list(dbz_ipca[i]))
