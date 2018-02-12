@@ -2,10 +2,6 @@
 # Description:
 #    Functions to perfrom QPE from radar data
 
-
-
-
-
 create.output <- function(fname, filter.year=NULL){
   tmp <- read.csv(fname, stringsAsFactors=F, na.strings=c("NA","-999", " "), encoding="big5")
   tmp <- tmp[,c("date","X1.hr")]
