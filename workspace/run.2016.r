@@ -9,12 +9,14 @@ require(caret)
 require(kernlab)
 
 # Collect results
-list.glm <- NULL
-list.svm <- NULL
+#list.glm <- NULL
+#list.svm <- NULL
 
 # Run through Each output
 results.glm <- data.frame(NULL)
 results.svm <- data.frame(NULL)
+coef.glm <- NULL
+ys <- NULL
 nstation <- length(y.tpe.2016)
 for(i in 1:nstation){
   # 
@@ -34,26 +36,34 @@ for(i in 1:nstation){
   for(i in 1:10){
     cvIn[[i]] <- (1:length(iodata$y))[-cvOut[[i]]]
   }
-  trctrl <- trainControl("cv", index=cvIn, indexOut=cvOut)
+  trctrl <- trainControl("cv", index=cvIn, indexOut=cvOut, savePred=T)
   # Fit model
   print("Training and cross validating...")
   # GLM
   fit.glm <- train(y~., data=iodata, method="glm", trControl=trctrl)
   print("GLM")
   print(fit.glm$results)
-  list.glm <- c(list.glm, list(fit.glm))
+  #list.glm <- c(list.glm, list(fit.glm))
   results.glm <- rbind(results.glm, fit.glm$results)
+  coef.glm <- c(coef.glm, list(coef(summary(fit.glm))))
   # SVM
   fit.svmr <- train(y~., data=iodata, method="svmRadial", trControl=trctrl)
   print("SVR")
   print(fit.svmr$results)
-  list.svm <- c(list.svm, list(fit.svmr))
+  #list.svm <- c(list.svm, list(fit.svmr))
   results.svm <- rbind(results.svm, fit.svmr$results)
+  # Collection predictions
+  y$y <- iodata$y
+  y$y.glm <- fit.glm$finalModel$fitted.values
+  y$y.svm <- fit,svmr$pred$pred
+  ys <- c(ys, list(y))
 }
-names(list.glm) <- names(y.tpe.2016)
-names(list.svm) <- names(y.tpe.2016)
+#names(list.glm) <- names(y.tpe.2016)
+#names(list.svm) <- names(y.tpe.2016)
+names(coef.glm) <- names(y.tpe.2016)
+names(ys) <- names(y.tpe.2016)
 # Clean up
-rm(i, iodata, cvOut, cvIn, trctrl)
+rm(i, iodata, cvOut, cvIn, trctrl, fit.glm, fit.svmr)
 # Save
 save.image("test2016.RData")
 

@@ -102,10 +102,12 @@ def main():
     #np.insert(com, 0, com_header, axis=0)
     writeToCsv(com, args.output.replace('.csv','.components.csv'), header=com_header)
     # Append date and projections
+    proj_header = ['date','hhmm'] + ['pc'+str(x+1) for x in range(args.n_components)]
+    newrecs = []
     for i in range(len(finfo)):
         newrecs.append(finfo[i][1:3] + list(dbz_ipca[i]))
     # Output
-    writeToCsv(newrecs, args.output)
+    writeToCsv(newrecs, args.output, header=proj_header)
     # done
     return(0)
     
