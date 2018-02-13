@@ -8,6 +8,7 @@ from tempfile import mkdtemp
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA, IncrementalPCA
+from sklearn.externals import joblib
 
 def search_dbz(srcdir):
     fileinfo = []
@@ -108,6 +109,8 @@ def main():
         newrecs.append(finfo[i][1:3] + list(dbz_ipca[i]))
     # Output
     writeToCsv(newrecs, args.output, header=proj_header)
+    # Save PCA for later use
+    joblib,dump(ipca, args.output.replace(".csv",".pca.mod"))
     # done
     return(0)
     

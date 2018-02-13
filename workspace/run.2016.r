@@ -55,7 +55,7 @@ for(i in 1:nstation){
   # Collection predictions
   y$y <- iodata$y
   y$y.glm <- fit.glm$finalModel$fitted.values
-  y$y.svm <- fit,svmr$pred$pred
+  y$y.svm <- fit.svmr$pred$pred
   ys <- c(ys, list(y))
 }
 #names(list.glm) <- names(y.tpe.2016)
