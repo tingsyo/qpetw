@@ -51,12 +51,12 @@ for(i in 1:nstation){
   print("SVR")
   print(fit.svmr$results)
   #list.svm <- c(list.svm, list(fit.svmr))
-  results.svm <- rbind(results.svm, fit.svmr$results)
+  results.svm <- rbind(results.svm, fit.svmr$results[1,])
   # Collection predictions
-  y$y <- iodata$y
-  y$y.glm <- fit.glm$finalModel$fitted.values
-  y$y.svm <- fit.svmr$pred$pred
-  ys <- c(ys, list(y))
+  y <- iodata$y
+  y.glm <- fit.glm$finalModel$fitted.values
+  y.svm <- fit.svmr$pred$pred
+  ys <- c(ys, list(data.frame("y"=y, "y.glm"=y.glm, "y.svm"=y.svm)))
 }
 #names(list.glm) <- names(y.tpe.2016)
 #names(list.svm) <- names(y.tpe.2016)

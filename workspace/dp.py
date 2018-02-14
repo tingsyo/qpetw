@@ -110,7 +110,7 @@ def main():
     # Output
     writeToCsv(newrecs, args.output, header=proj_header)
     # Save PCA for later use
-    joblib,dump(ipca, args.output.replace(".csv",".pca.mod"))
+    joblib.dump(ipca, args.output.replace(".csv",".pca.mod"))
     # done
     return(0)
     
