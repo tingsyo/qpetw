@@ -22,11 +22,11 @@ for(i in 1:nstation){
   # 
   print(paste("Creating IO data for",names(ys.tpe2016)[i]))
   # Combine IO
-  iodata <- cbind(ys.tpe2016[[i]], input.2016.pc20)
+  iodata <- cbind("y"=ys.tpe2016[[i]]$t1hr, input.2016.pc20)
   # Clean up NA and move date to row.names
   print("Cleaning up data...")
-  row.names(iodata) <- iodata$date
-  iodata <- iodata[complete.cases(iodata), -1]
+  row.names(iodata) <- ys.tpe2016[[i]]$date
+  iodata <- iodata[complete.cases(iodata),]
   print(paste("    Number of valid records:", nrow(iodata)))
   # Setup train-control
   print("Creating folds for cross validation...")
