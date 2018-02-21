@@ -17,12 +17,12 @@ results.glm <- data.frame(NULL)
 results.svm <- data.frame(NULL)
 coef.glm <- NULL
 ys <- NULL
-nstation <- length(y.tpe.2016)
+nstation <- length(ys.tpe2016)
 for(i in 1:nstation){
   # 
-  print(paste("Creating IO data for",names(y.tpe.2016)[i]))
+  print(paste("Creating IO data for",names(ys.tpe2016)[i]))
   # Combine IO
-  iodata <- cbind(y.tpe.2016[[i]], input.2016.pc20)
+  iodata <- cbind(ys.tpe2016[[i]], input.2016.pc20)
   # Clean up NA and move date to row.names
   print("Cleaning up data...")
   row.names(iodata) <- iodata$date
@@ -58,14 +58,14 @@ for(i in 1:nstation){
   y.svm <- fit.svmr$pred$pred
   ys <- c(ys, list(data.frame("y"=y, "y.glm"=y.glm, "y.svm"=y.svm)))
 }
-#names(list.glm) <- names(y.tpe.2016)
-#names(list.svm) <- names(y.tpe.2016)
-names(coef.glm) <- names(y.tpe.2016)
-names(ys) <- names(y.tpe.2016)
+#names(list.glm) <- names(ys.tpe2016)
+#names(list.svm) <- names(ys.tpe2016)
+names(coef.glm) <- names(ys.tpe2016)
+names(ys) <- names(ys.tpe2016)
 # Clean up
 rm(i, iodata, cvOut, cvIn, trctrl, fit.glm, fit.svmr)
 # Save
-save.image("test2016.RData")
+save.image("qpe2016.RData")
 
 
 
