@@ -138,3 +138,24 @@ create.input.qpe <- function(y, x, filter.year=NULL){
   #
   return(cbind(y,newx))
 }
+
+# Run a loop to test QPF
+test.qpf <- function(y, x, rseed=12345){
+  # Number of tests of prediction
+  ntest <- ncol(y) - 1
+  ynames <- names(y)
+  # Loop through 
+  results <- NULL
+  for(i in 1:ntest){
+    print(paste("Evaluating QPF:", ynames[i+1]))
+    # Combine input/output data
+    iodata <- cbind("y"=y[,i+1], x)
+    # Shift y for forecast
+    iodata$y <- c(iodata$y[2:nrow(iodata)], NA)
+    set.seed(rseed)
+    fit.glm <- train(y~., data=na.omit(iodata), method="glm", trControl=trainControl("cv",10))
+    results <- rbind(results, fit.glm$results)
+  }
+  results$test <- ynames[-1]
+  return(results)
+}
