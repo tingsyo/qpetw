@@ -1,15 +1,37 @@
-# File: qpe.r
+# File: utils.r
 # Description:
-#    Functions to perfrom QPE from radar data
+#    Functions to read and process QPE data: radar and station precipitation tag
 
-create.output <- function(fname, filter.year=NULL){
-  tmp <- read.csv(fname, stringsAsFactors=F, na.strings=c("NA","-999", " "), encoding="big5")
-  tmp <- tmp[,c("date","X1.hr")]
+# Read in radar data: fixed width format
+read.radar <- function(f){
+  tmp <- read.fwf(fname, c(8,8,8), header=F, col.names=c("lat","lon","dbz"))
+  return(tmp)
+}
+
+# Plot radar data with ggmap: remove all 0s and interpolate on the map
+plot.radar <- function(dbz){
+  require(ggmap)
+  map <- get_map(location='Taiwan', zoom=7)
+  dbz <- dbz[which(dbz$dbz>0),]
+  g <- ggmap(map) + stat_density2d(aes(x=lon, y=lat, fill=..level.., alpha=..level..), 
+                                   size=2, bins=4, data=dbz, geom="polygon")
+  g
+  return(g)
+}
+
+# Read in quantitative precipitations of CWB stations in Taipei area
+# - return:
+#   - dataframe of
+#     - date: strings represent YYYYMMDDHH
+#     - tXhr: accumulative precipitation in X hours (HH-1 ~ HH+X-1)
+read.tpeqp <- function(fname, filter.year=NULL){
+  # Read file
+  tmp <- read.csv(fname, stringsAsFactors=F, na.strings=c("NA","-999", " "), fileEncoding="BIG-5")
+  # Select columns
+  tmp <- tmp[,c(3,4,9,14,19,24,29,34,39)]
+  names(tmp) <- c("date","t1hr","t3hr","t6hr","t12hr","t24hr","t48hr","t72hr","t120hr")
+  # 
   tmp$date <- as.character(tmp$date)
-  #tmp$year <- substr(tmp$date,1,4)
-  #tmp$month <- substr(tmp$date,5,6)
-  #tmp$day <- substr(tmp$date,7,8)
-  #tmp$hour <- substr(tmp$date,9,10)
   if(!is.null(filter.year)){
     tmp <- tmp[which(substr(tmp$date,1,4)==filter.year),]
   }
@@ -17,6 +39,32 @@ create.output <- function(fname, filter.year=NULL){
   return(tmp)
 }
 
+# Aggregate output data object: a list of dataframes, named by the station
+create.output <- function(datadir, filter.year=NULL){
+  # Get all stations
+  flist <- list.files(datadir)
+  # Loop through all stations
+  outputs <- NULL
+  onames <- NULL
+  for(f in flist){
+    fname <- paste(datadir,f,sep="/")
+    print(paste("Processing file:",fname))
+    tmp <- read.tpeqp(fname, filter.year=filter.year)
+    print(dim(tmp))
+    if(nrow(tmp) %in% c(365*24, 366*24) ){
+      outputs <- c(outputs, list(tmp))
+      onames <- c(onames, f)
+    } else {
+      print(paste("Number of records incorrect:", nrow(tmp)))
+    }
+  }
+  names(outputs) <- substr(onames,1,6)
+  return(outputs)
+}
+
+
+
+# 
 dbz.flist <- function(srcdir){
   output <- NULL
   # Get all days
@@ -33,19 +81,20 @@ dbz.flist <- function(srcdir){
   return(output)
 }
 
-read.radar <- function(f){
-  tmp <- read.fwf(fname, c(8,8,8), header=F, col.names=c("lat","lon","dbz"))
-  return(tmp)
-}
-
+# Read in preprocessed DBZ data: 
 read.dbzpcs <- function(fname, npc=20){
   tmp <- read.csv("dbz.ipca50.csv", stringsAsFactors = F, header=F, colClasses = c("character","character",rep("numeric", npc)))
   names(tmp) <- c("date","hhmm",paste("pc", 1:npc, sep="_"))
   return(tmp[,1:(npc+2)])
 }
 
-
-create.input <- function(y, x, filter.year=NULL){
+# Create input data for QPE:
+# - Use given Y(precipitation) and it's time stamp(YYYYMMDDHH)
+# - For the same YYYYMMDD, each HH of precipitation is corresponding to: 
+#   - 6 HHMM of DBZ data records (with 10min interval)
+#   - HH-60min, HH-50min, HH-40min, HH-30min, HH-20min, and HH-10min
+#   - impute NA for missing DBZ records
+create.input.qpe <- function(y, x, filter.year=NULL){
   # Table for hour-minute correspondence
   hhlist <- c("00","01","02","03","04","05","06","07","08","09","10","11",
               "12","13","14","15","16","17","18","19","20","21","22","23")
