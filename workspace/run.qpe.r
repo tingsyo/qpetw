@@ -12,7 +12,7 @@ require(kernlab)
 results.glm <- data.frame(NULL)
 #results.svm <- data.frame(NULL)
 #coef.glm <- NULL
-ys <- NULL
+#ys <- NULL
 # Run through each station
 nstation <- length(ys.tpe2016)
 for(i in 1:nstation){
@@ -54,15 +54,16 @@ for(i in 1:nstation){
   #list.svm <- c(list.svm, list(fit.svmr))
   #results.svm <- rbind(results.svm, fit.svmr$results)
   # Collection predictions
-  y$y <- iodata$y
-  y$y.glm <- fit.glm$finalModel$fitted.values
+  #y <- data.frame(NULL)
+  #y$y <- iodata$y
+  #y$y.glm <- fit.glm$finalModel$fitted.values
   #y$y.svm <- fit.svmr$pred$pred
-  ys <- c(ys, list(y))
+  #ys <- c(ys, list(y))
 }
 #names(list.glm) <- names(ys.tpe2016)
 #names(list.svm) <- names(ys.tpe2016)
 #names(coef.glm) <- names(ys.tpe2016)
-names(ys) <- names(ys.tpe2016)
+#names(ys) <- names(ys.tpe2016)
 # Clean up
 rm(i, iodata, cvOut, cvIn, trctrl, fit.glm, fit.svmr)
 # Save
