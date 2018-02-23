@@ -9,14 +9,11 @@ require(caret)
 require(kernlab)
 
 # Collect results
-#list.glm <- NULL
-#list.svm <- NULL
-
-# Run through Each output
 results.glm <- data.frame(NULL)
-results.svm <- data.frame(NULL)
-coef.glm <- NULL
+#results.svm <- data.frame(NULL)
+#coef.glm <- NULL
 ys <- NULL
+# Run through each station
 nstation <- length(ys.tpe2016)
 for(i in 1:nstation){
   # 
@@ -40,27 +37,31 @@ for(i in 1:nstation){
   # Fit model
   print("Training and cross validating...")
   # GLM
-  fit.glm <- train(y~., data=iodata, method="glm", trControl=trctrl)
+  fit.glm <- train(log(y+1)~., data=iodata, method="glm", preProcess="scale", trControl=trctrl)
+  rec <- fit.glm$results
+  yhat <- fit.glm$finalModel$fitted.values
+  rec$RMSE.insample <- RMSE(exp(yhat)-1, iodata$y)
+  rec$CORR.log <- cor(yhat, log(iodata$y+1))
+  rec$CORR.mm <- cor(exp(yhat)-1, iodata$y)
   print("GLM")
-  print(fit.glm$results)
-  #list.glm <- c(list.glm, list(fit.glm))
-  results.glm <- rbind(results.glm, fit.glm$results)
-  coef.glm <- c(coef.glm, list(coef(summary(fit.glm))))
+  print(rec)
+  results.glm <- rbind(results.glm, rec)
+  #coef.glm <- c(coef.glm, list(coef(summary(fit.glm))))
   # SVM
-  fit.svmr <- train(y~., data=iodata, method="svmRadial", trControl=trctrl)
-  print("SVR")
-  print(fit.svmr$results)
+  #fit.svmr <- train(log(y+1)~., data=iodata, method="svmRadial", preProcess="scale", trControl=trctrl)
+  #print("SVR")
+  #print(fit.svmr$results)
   #list.svm <- c(list.svm, list(fit.svmr))
-  results.svm <- rbind(results.svm, fit.svmr$results)
+  #results.svm <- rbind(results.svm, fit.svmr$results)
   # Collection predictions
   y$y <- iodata$y
   y$y.glm <- fit.glm$finalModel$fitted.values
-  y$y.svm <- fit.svmr$pred$pred
+  #y$y.svm <- fit.svmr$pred$pred
   ys <- c(ys, list(y))
 }
 #names(list.glm) <- names(ys.tpe2016)
 #names(list.svm) <- names(ys.tpe2016)
-names(coef.glm) <- names(ys.tpe2016)
+#names(coef.glm) <- names(ys.tpe2016)
 names(ys) <- names(ys.tpe2016)
 # Clean up
 rm(i, iodata, cvOut, cvIn, trctrl, fit.glm, fit.svmr)
