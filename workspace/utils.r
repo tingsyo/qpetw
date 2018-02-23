@@ -150,12 +150,30 @@ test.qpf <- function(y, x, rseed=12345){
     print(paste("Evaluating QPF:", ynames[i+1]))
     # Combine input/output data
     iodata <- cbind("y"=y[,i+1], x)
+    row.names(iodata) <- y$date
     # Shift y for forecast
     iodata$y <- c(iodata$y[2:nrow(iodata)], NA)
+    iodata <- iodata[complete.cases(iodata),]
+    print(paste("    Number of valid records:", nrow(iodata)))
+    # Setup train-control
+    print("    Creating folds for cross validation...")
     set.seed(rseed)
-    fit.glm <- train(y~., data=na.omit(iodata), method="glm", trControl=trainControl("cv",10))
-    results <- rbind(results, fit.glm$results)
+    cvOut <- createFolds(iodata$y, k=10)
+    cvIn <- cvOut
+    for(i in 1:10){
+      cvIn[[i]] <- (1:length(iodata$y))[-cvOut[[i]]]
+    }
+    trctrl <- trainControl("cv", index=cvIn, indexOut=cvOut, savePred=T)
+    # Fit model
+    print("    Training and cross validating...")
+    fit.glm <- train(log(y+1)~., data=na.omit(iodata), method="glm", preProcess="scale", trControl=trctrl)
+    rec <- fit.glm$results
+    yhat <- fit.glm$finalModel$fitted.values
+    rec$RMSE.insample <- RMSE(exp(yhat)-1, iodata$y)
+    rec$CORR.log <- cor(yhat, log(iodata$y+1))
+    rec$CORR.mm <- cor(exp(yhat)-1, iodata$y)
+    results <- rbind(results, rec)
   }
-  results$test <- ynames[-1]
+  results <- cbind("test"=ynames[-1], data.frame(results))
   return(results)
 }
