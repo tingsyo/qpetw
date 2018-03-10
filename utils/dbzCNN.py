@@ -41,10 +41,6 @@ __status__ = "development"
 __date__ = '2018-02-14'
 
 
-
-
-
-
 # VGG model
 def init_model_vgg(input_shape):
     """
@@ -93,3 +89,59 @@ def init_model_vgg(input_shape):
     adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01, clipvalue=1.)
     model.compile(loss='cosine_proximity', optimizer=adam, metrics=['mse','mae'])
     return(model)
+
+def read_dbz(furi):
+    results = None
+    try:
+        tmp = pd.read_fwf(furi, widths=[8,8,8], header=None)
+        results = np.float32(np.array(tmp.iloc[:,2])).reshape((275,162))
+    except pd.errors.EmptyDataError:
+        logging.warning(furi + " is empty.")
+    return(results)
+
+#-----------------------------------------------------------------------
+def main():
+    # Configure Argument Parser
+    parser = argparse.ArgumentParser(description='Retrieve DBZ data for further processing.')
+    parser.add_argument('--input', '-i', help='the directory containing all the DBZ data.')
+    parser.add_argument('--output', '-o', default='output.csv', help='the output file.')
+    parser.add_argument('--n_components', '-n', default=20, type=int, help='number of component to output.')
+    parser.add_argument('--batch_size', '-b', default=100, type=int, help='number of component to output.')
+    parser.add_argument('--randomseed', '-r', help="integer as the random seed", default="1234543")
+    parser.add_argument('--log', '-l', default='tmp.log', help='the log file.')
+    args = parser.parse_args()
+    # Set up logging
+    logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
+    # Scan files for reading
+    finfo = search_dbz(args.input)
+    # Read into numpy.memmap
+    logging.info("Extract data from all files: "+ str(len(finfo)))
+    dbz = read_dbz_memmap(finfo)
+    # Process dbz data with Incremental PCA
+    logging.info("Performing IncrementalPCA with "+ str(args.n_components)+" components.")
+    ipca = IncrementalPCA(n_components=args.n_components, batch_size=args.batch_size)
+    dbz_ipca = ipca.fit_transform(dbz)
+    evr = ipca.explained_variance_ratio_
+    com = np.transpose(ipca.components_)
+    logging.debug("Explained variance ratio: "+ str(evr))
+    # Output components
+    com_header = ['pc'+str(x+1) for x in range(args.n_components)]
+    #np.insert(com, 0, com_header, axis=0)
+    writeToCsv(com, args.output.replace('.csv','.components.csv'), header=com_header)
+    # Append date and projections
+    proj_header = ['date','hhmm'] + ['pc'+str(x+1) for x in range(args.n_components)]
+    newrecs = []
+    for i in range(len(finfo)):
+        newrecs.append(finfo[i][1:3] + list(dbz_ipca[i]))
+    # Output
+    writeToCsv(newrecs, args.output, header=proj_header)
+    # Save PCA for later use
+    joblib.dump(ipca, args.output.replace(".csv",".pca.mod"))
+    # done
+    return(0)
+    
+#==========
+# Script
+#==========
+if __name__=="__main__":
+    main()
