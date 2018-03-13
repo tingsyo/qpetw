@@ -231,3 +231,30 @@ cmToMetrics <- function(cm, positive=1){
               "Markedness"=markedness)
   return(output)
 }
+
+# 2-step QPE
+qpe.2step <- function(iodata, threshold=1){
+  # Extract y and 
+  y <- iodata$y
+  ybin <- (y>=threshold)*1
+  #
+  trctrl <- trainControl(method="cv", number=10, savePred=T)
+  # Step 1: binary classification for y>=threshold
+  fit.bin <- train(factor(y>=threshold)~., data=iodata, method="svmPoly", preProcess="scale", trControl=trctrl)
+  # Step 2: regression model trained with y>=threshold
+  fit.reg <- train(y~., data=iodata[which(iodata$y>=threshold),], method="svmPoly", preProcess="scale", trControl=trctrl)
+  # Evaluation
+  yhat.bin <- predict(fit.bin, newdata=iodata[,-1])
+  yhat.bin <- as.numeric(yhat.bin)-1
+  yhat.reg <- predict(fit.reg, newdata=iodata[,-1])
+  yhat <- yhat.bin*yhat.reg
+  rmse <- RMSE(iodata$y, yhat)
+  r2 <- cor(iodata$y, yhat)
+  print(paste("RMSE:", rmse, "    Rsquared:", r2))
+  return(list(
+    "model.bin" = fit.bin$finalModel,
+    "model.reg" = fit.reg$finalModel,
+    "pred" = data.frame("y_true"=iodata$y, "y_pred"=yhat)
+    )
+  )
+}
