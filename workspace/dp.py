@@ -61,6 +61,26 @@ def read_dbz_memmap(finfo, tmpfile='dbz.dat', flush_cycle=14400):
     dbz.flush()
     return(dbz)
 
+def partialIPCA(finfo, nc=20, bs=100):
+    ipca = IncrementalPCA(n_components=nc, batch_size=bs)
+    # Loop through finfo
+    for i in range(0, len(finfo), bs):
+        # Read batch data
+        dbz = []
+        for j in range(i, i+bs):
+            f = finfo[j]
+            logging.debug('Reading data from: ' + f[0])
+            tmp = read_dbz(f[0])
+            # Append new record
+            if tmp is None:     # Copy the previous record if new record is empty
+                dbz[i,:] = dbz[(i-1),:]
+            else:
+                dbz[i,:] = tmp[:]
+        # Partial fit with batch data
+        ipca.partial_fit()
+    #
+    return(ipca)
+
 def writeToCsv(output, fname, header=None):
     # Overwrite the output file:
     with open(fname, 'w', newline='', encoding='utf-8-sig') as csvfile:
@@ -89,12 +109,15 @@ def main():
     # Scan files for reading
     finfo = search_dbz(args.input)
     # Read into numpy.memmap
-    logging.info("Extract data from all files: "+ str(len(finfo)))
-    dbz = read_dbz_memmap(finfo)
+    #logging.info("Extract data from all files: "+ str(len(finfo)))
+    #dbz = read_dbz_memmap(finfo)
     # Process dbz data with Incremental PCA
-    logging.info("Performing IncrementalPCA with "+ str(args.n_components)+" components.")
-    ipca = IncrementalPCA(n_components=args.n_components, batch_size=args.batch_size)
-    dbz_ipca = ipca.fit_transform(dbz)
+    logging.info("Performing IncrementalPCA with "+ str(args.n_components)+" components and batch size of" + str(args.batch_size))
+    ipca = partialIPCA(finfo, nc=args.n_components, bs=args.batch_size)
+
+    #ipca = IncrementalPCA(n_components=args.n_components, batch_size=args.batch_size)
+    #dbz_ipca = ipca.fit_transform(dbz)
+
     evr = ipca.explained_variance_ratio_
     com = np.transpose(ipca.components_)
     logging.debug("Explained variance ratio: "+ str(evr))
