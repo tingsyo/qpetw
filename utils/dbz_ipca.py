@@ -4,7 +4,6 @@
 Test script of using Keras to implement a 1D convolutional neural network (CNN) for regression.
 """
 import os, csv, logging, argparse
-from tempfile import mkdtemp
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA, IncrementalPCA
@@ -32,36 +31,8 @@ def read_dbz(furi):
         logging.warning(furi + " is empty.")
     return(results)
     
-def read_dbz_memmap(finfo, tmpfile='dbz.dat', flush_cycle=14400):
-    dbz = None
-    fcount = 0
-    # Setup numpy.memmap for storage
-    tmp = read_dbz(finfo[0][0])
-    logging.info("Start memmap with shape: ("+ str(len(finfo)) + "," + str(len(tmp)) +")")
-    dbz = np.memmap(tmpfile, dtype='float32', mode='w+', shape=(len(finfo), len(tmp)))
-    # Add 1st record
-    dbz[0,:] = tmp[:]
-    # Loop through finfo
-    for i in range(1,len(finfo)):
-        f = finfo[i]
-        logging.debug('Reading data from: ' + f[0])
-        tmp = read_dbz(f[0])
-        # Append new record
-        if tmp is None:     # Copy the previous record if new record is empty
-            dbz[i,:] = dbz[(i-1),:]
-        else:
-            dbz[i,:] = tmp[:]
-        # Flush memmap everry flush_cycle
-        fcount+=1
-        if fcount==flush_cycle:
-            logging.debug("Flush memmap: "+str(fcount)+" | "+str(i))
-            fcount = 0
-            dbz.flush()
-    # Save changes of the storage file
-    dbz.flush()
-    return(dbz)
 
-def partialIPCA(finfo, nc=20, bs=100):
+def fit_ipca_partial(finfo, nc=20, bs=100):
     ipca = IncrementalPCA(n_components=nc, batch_size=bs)
     # Loop through finfo
     for i in range(0, len(finfo), bs):
@@ -83,6 +54,27 @@ def partialIPCA(finfo, nc=20, bs=100):
         ipca.partial_fit(dbz)
     #
     return(ipca)
+
+
+def transform_dbz(ipca, finfo):
+    dbz = []
+    # Loop through finfo
+    for i in range(0,len(finfo)):
+        f = finfo[i]
+        logging.debug('Reading data from: ' + f[0])
+        tmp = read_dbz(f[0])
+        # Append new record
+        if tmp is None:     # Copy the previous record if new record is empty
+            print('File empty: '+f[0])
+            dbz.append(np.zeros(ipca.n_components))
+        else:
+            tmp = tmp.reshape(1,len(tmp))
+            tmp = ipca.transform(tmp).flatten()
+            dbz.append(tmp)
+    # Save changes of the storage file
+    print(np.array(dbz).shape)
+    return(dbz)
+
 
 def writeToCsv(output, fname, header=None):
     # Overwrite the output file:
@@ -111,32 +103,29 @@ def main():
     logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
     # Scan files for reading
     finfo = search_dbz(args.input)
-    # Read into numpy.memmap
-    #logging.info("Extract data from all files: "+ str(len(finfo)))
-    #dbz = read_dbz_memmap(finfo)
-    # Process dbz data with Incremental PCA
+    print('Sample size: '+str(len(finfo)))
+
+    # Fit Incremental PCA
     logging.info("Performing IncrementalPCA with "+ str(args.n_components)+" components and batch size of" + str(args.batch_size))
-    ipca = partialIPCA(finfo, nc=args.n_components, bs=args.batch_size)
-
-    #ipca = IncrementalPCA(n_components=args.n_components, batch_size=args.batch_size)
-    #dbz_ipca = ipca.fit_transform(dbz)
-
+    ipca = fit_ipca_partial(finfo, nc=args.n_components, bs=args.batch_size)
     evr = ipca.explained_variance_ratio_
     com = np.transpose(ipca.components_)
-    logging.debug("Explained variance ratio: "+ str(evr))
+    logging.info("Explained variance ratio: "+ str(evr))
     # Output components
     com_header = ['pc'+str(x+1) for x in range(args.n_components)]
-    #np.insert(com, 0, com_header, axis=0)
     writeToCsv(com, args.output.replace('.csv','.components.csv'), header=com_header)
-    # Append date and projections
-    #proj_header = ['date','hhmm'] + ['pc'+str(x+1) for x in range(args.n_components)]
-    #newrecs = []
-    #for i in range(len(finfo)):
-    #    newrecs.append(finfo[i][1:3] + list(dbz_ipca[i]))
-    # Output
-    #writeToCsv(newrecs, args.output, header=proj_header)
-    # Save PCA for later use
+    # Output fitted IPCA model
     joblib.dump(ipca, args.output.replace(".csv",".pca.mod"))
+
+    # Transform data
+    dbz_ipca = transform_dbz(ipca, finfo)
+    # Append date and projections
+    proj_header = ['date','hhmm'] + ['pc'+str(x+1) for x in range(args.n_components)]
+    newrecs = []
+    for i in range(len(finfo)):
+        newrecs.append(finfo[i][1:3] + list(dbz_ipca[i]))
+    # Output
+    writeToCsv(newrecs, args.output, header=proj_header)
     # done
     return(0)
     
