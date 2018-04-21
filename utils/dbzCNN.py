@@ -4,7 +4,6 @@
 Test script read in grid RADAR data and learn with VGG
 """
 import os, csv, logging, argparse
-from tempfile import mkdtemp
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -105,7 +104,6 @@ def main():
     parser = argparse.ArgumentParser(description='Retrieve DBZ data for further processing.')
     parser.add_argument('--input', '-i', help='the directory containing all the DBZ data.')
     parser.add_argument('--output', '-o', default='output.csv', help='the output file.')
-    parser.add_argument('--n_components', '-n', default=20, type=int, help='number of component to output.')
     parser.add_argument('--batch_size', '-b', default=100, type=int, help='number of component to output.')
     parser.add_argument('--randomseed', '-r', help="integer as the random seed", default="1234543")
     parser.add_argument('--log', '-l', default='tmp.log', help='the log file.')
