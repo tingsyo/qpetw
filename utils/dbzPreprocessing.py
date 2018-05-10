@@ -1,14 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Test script read in grid RADAR data and pre-process with IncrementalPCA
+TUtility script to preprocess RADAR data and group them into 1hr interval
 """
 import os, csv, logging, argparse
-from tempfile import mkdtemp
 import numpy as np
 import pandas as pd
-from sklearn.decomposition import PCA, IncrementalPCA
-from sklearn.externals import joblib
 
 __author__ = "Ting-Shuo Yo"
 __copyright__ = "Copyright 2017~2018, DataQualia Lab Co. Ltd."
@@ -18,7 +15,7 @@ __version__ = "0.0.1"
 __maintainer__ = "Ting-Shuo Yo"
 __email__ = "tingyo@dataqualia.com"
 __status__ = "development"
-__date__ = '2018-02-14'
+__date__ = '2018-04-20'
 
 def search_dbz(srcdir):
     fileinfo = []

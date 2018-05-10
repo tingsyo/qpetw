@@ -2,17 +2,24 @@
 # Description:
 #    Functions to perfrom QPE from radar data
 # Load input/output data
-#load("io.tpe2016.pc20.RData")
+load("input.1316.pc20.RData")
+load("output.1316.RData")
 rseed = 1234543
 # Load library
 require(caret)
 require(kernlab)
-
+require(parallel)
+# Set up multi-core
+library(doParallel)
+cluster <- makeCluster(detectCores() - 2) # convention to leave 1 core for OS
+registerDoParallel(cluster)
 # Collect results
 results.glm <- data.frame(NULL)
-#results.svm <- data.frame(NULL)
+results.svm <- data.frame(NULL)
 #coef.glm <- NULL
-#ys <- NULL
+ys <- NULL
+mod.glm <- NULL
+mod.svm <- NULL
 # Run through each station
 nstation <- length(y.1316)
 for(i in 1:nstation){
@@ -33,39 +40,49 @@ for(i in 1:nstation){
   for(i in 1:10){
     cvIn[[i]] <- (1:length(iodata$y))[-cvOut[[i]]]
   }
-  trctrl <- trainControl("cv", index=cvIn, indexOut=cvOut, savePred=T)
+  trctrl <- trainControl("cv", index=cvIn, indexOut=cvOut, allowParallel=T, savePred=T)
   # Fit model
   print("Training and cross validating...")
   # GLM
   fit.glm <- train(log(y+1)~., data=iodata, method="glm", preProcess="scale", trControl=trctrl)
   rec <- fit.glm$results
-  yhat <- fit.glm$finalModel$fitted.values
-  rec$RMSE.insample <- RMSE(exp(yhat)-1, iodata$y)
-  rec$CORR.log <- cor(yhat, log(iodata$y+1))
-  rec$CORR.mm <- cor(exp(yhat)-1, iodata$y)
+  yhat.glm <- fit.glm$finalModel$fitted.values
+  rec$RMSE.insample <- RMSE(exp(yhat.glm)-1, iodata$y)
+  rec$CORR.log <- cor(yhat.glm, log(iodata$y+1))
+  rec$CORR.mm <- cor(exp(yhat.glm)-1, iodata$y)
   print("GLM")
   print(rec)
   results.glm <- rbind(results.glm, rec)
   #coef.glm <- c(coef.glm, list(coef(summary(fit.glm))))
   # SVM
-  #fit.svmr <- train(log(y+1)~., data=iodata, method="svmRadial", preProcess="scale", trControl=trctrl)
-  #print("SVR")
-  #print(fit.svmr$results)
-  #list.svm <- c(list.svm, list(fit.svmr))
-  #results.svm <- rbind(results.svm, fit.svmr$results)
+  fit.svmr <- train(log(y+1)~., data=iodata, method="svmRadial", preProcess="scale", trControl=trctrl)
+  rec <- fit.svmr$results
+  yhat.svm <- fit.svmr$pred$pred
+  rec$RMSE.insample <- RMSE(exp(yhat.svm)-1, iodata$y)
+  rec$CORR.log <- cor(yhat.svm, log(iodata$y+1))
+  rec$CORR.mm <- cor(exp(yhat.svm)-1, iodata$y)
+  print("SVR")
+  print(rec)
+  results.svm <- rbind(results.svm, fit.svmr$results)
   # Collection predictions
-  #y <- data.frame(NULL)
-  #y$y <- iodata$y
-  #y$y.glm <- fit.glm$finalModel$fitted.values
-  #y$y.svm <- fit.svmr$pred$pred
-  #ys <- c(ys, list(y))
+  y <- data.frame(NULL)
+  y$y <- iodata$y
+  y$y.glm <- yhat.glm
+  y$y.svm <- yhat.svm
+  ys <- c(ys, list(y))
+  # Save model
+  mod.glm <- c(mod.glm, list(fit.glm$finalModel))
+  mod.svm <- c(mod.svm, list(fit.svmr$finalModel))
 }
-#names(list.glm) <- names(y.1316)
-#names(list.svm) <- names(y.1316)
 #names(coef.glm) <- names(y.1316)
-#names(ys) <- names(y.1316)
+names(ys) <- names(y.1316)
+names(mod.glm) <- names(y.1316)
+names(mod.svm) <- names(y.1316)
 # Clean up
 rm(i, iodata, cvOut, cvIn, trctrl, fit.glm, fit.svmr)
+# Stop parallel
+stopCluster(cluster)
+registerDoSEQ()
 # Save
 save.image("qpe1316.RData")
 
