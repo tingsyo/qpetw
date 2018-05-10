@@ -57,13 +57,13 @@ for(i in 1:nstation){
   # SVM
   fit.svmr <- train(log(y+1)~., data=iodata, method="svmRadial", preProcess="scale", trControl=trctrl)
   rec <- fit.svmr$results
-  yhat.svm <- fit.svmr$pred$pred
+  yhat.svm <- fit.svmr$finalModel@fitted
   rec$RMSE.insample <- RMSE(exp(yhat.svm)-1, iodata$y)
   rec$CORR.log <- cor(yhat.svm, log(iodata$y+1))
   rec$CORR.mm <- cor(exp(yhat.svm)-1, iodata$y)
   print("SVR")
   print(rec)
-  results.svm <- rbind(results.svm, fit.svmr$results)
+  results.svm <- rbind(results.svm, fit.svmr$results[1,])
   # Collection predictions
   y <- data.frame(NULL)
   y$y <- iodata$y
