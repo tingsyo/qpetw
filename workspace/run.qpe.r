@@ -56,14 +56,14 @@ for(i in 1:nstation){
   #coef.glm <- c(coef.glm, list(coef(summary(fit.glm))))
   # SVM
   fit.svmr <- train(log(y+1)~., data=iodata, method="svmRadial", preProcess="scale", trControl=trctrl)
-  rec <- fit.svmr$results
+  rec <- fit.svmr$results[1,]
   yhat.svm <- fit.svmr$finalModel@fitted
   rec$RMSE.insample <- RMSE(exp(yhat.svm)-1, iodata$y)
   rec$CORR.log <- cor(yhat.svm, log(iodata$y+1))
   rec$CORR.mm <- cor(exp(yhat.svm)-1, iodata$y)
   print("SVR")
   print(rec)
-  results.svm <- rbind(results.svm, fit.svmr$results[1,])
+  results.svm <- rbind(results.svm, rec)
   # Collection predictions
   y <- data.frame(NULL)
   y$y <- iodata$y
