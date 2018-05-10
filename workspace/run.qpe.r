@@ -16,7 +16,6 @@ registerDoParallel(cluster)
 # Collect results
 results.glm <- data.frame(NULL)
 results.svm <- data.frame(NULL)
-#coef.glm <- NULL
 ys <- NULL
 mod.glm <- NULL
 mod.svm <- NULL
@@ -31,6 +30,7 @@ for(i in 1:nstation){
   print("Cleaning up data...")
   row.names(iodata) <- y.1316[[i]]$date
   iodata <- iodata[complete.cases(iodata),]
+  #iodata <- iodata[1:1000,]
   print(paste("    Number of valid records:", nrow(iodata)))
   # Setup train-control
   print("Creating folds for cross validation...")
@@ -65,8 +65,8 @@ for(i in 1:nstation){
   print(rec)
   results.svm <- rbind(results.svm, rec)
   # Collection predictions
-  y <- data.frame(NULL)
-  y$y <- iodata$y
+  #y <- data.frame(NULL)
+  y <- data.frame(iodata$y)
   y$y.glm <- yhat.glm
   y$y.svm <- yhat.svm
   ys <- c(ys, list(y))
@@ -84,7 +84,8 @@ rm(i, iodata, cvOut, cvIn, trctrl, fit.glm, fit.svmr)
 stopCluster(cluster)
 registerDoSEQ()
 # Save
-save.image("qpe1316.RData")
+save(results.glm, results.svm, ys, file="qpe1316.RData")
+save(mod.glm, mod.svm, ys, file="qpe1316.mod.RData")
 
 
 
