@@ -1,6 +1,6 @@
-#!/usr/bin/bash
+#!/bin/bash
 # Operation script for calling from schedule
-source(qpetw.cfg)
+source qpetw.cfg
 #-----------------------------------------------------------------------
 # Step 1: Data aggregation
 #-----------------------------------------------------------------------
