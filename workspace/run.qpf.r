@@ -1,40 +1,89 @@
-# File: qpe.r
+# File: qpf.r
 # Description:
 #    Functions to perfrom QPE from radar data
 # Load input/output data
-source("utils.r")
-load("io.tpe2016.pc20.RData")
+load("input.1316.pc20.RData")
+load("output.1316.RData")
 rseed = 1234543
 # Load library
 require(caret)
 require(kernlab)
-
+require(parallel)
+# Set up multi-core
+library(doParallel)
+cluster <- makeCluster(detectCores() - 2) # convention to leave 1 core for OS
+registerDoParallel(cluster)
 # Collect results
-#list.glm <- NULL
-#list.svm <- NULL
-
-# Run through Each output
-results <- data.frame(NULL)
-nstation <- length(ys.tpe2016)
+results.glm <- data.frame(NULL)
+results.svm <- data.frame(NULL)
+ys <- NULL
+mod.glm <- NULL
+mod.svm <- NULL
+# Run through each station
+nstation <- length(y.1316)
 for(i in 1:nstation){
   # 
-  print(paste("Creating IO data for",names(ys.tpe2016)[i]))
-  # Extract Y
-  y <- ys.tpe2016[[i]]
-  # Evaluate QPF
-  print(paste("QPE for station:",names(ys.tpe2016)[i]))
-  tmp <- test.qpf(y, input.2016.pc20)
-  # Collect results
-  res <- cbind("station"=names(ys.tpe2016)[i], tmp)
-  results <- rbind(results, res)
+  print(paste("Creating IO data for",names(y.1316)[i]))
+  # Combine IO
+  iodata <- cbind("y"=c(y.1316[[i]]$t1hr[2:nrow(y.1316[[i]])],NA), input.1316)
+  # Clean up NA and move date to row.names
+  print("Cleaning up data...")
+  row.names(iodata) <- y.1316[[i]]$date
+  iodata <- iodata[complete.cases(iodata),]
+  #iodata <- iodata[1:1000,]
+  print(paste("    Number of valid records:", nrow(iodata)))
+  # Setup train-control
+  print("Creating folds for cross validation...")
+  set.seed(rseed)
+  cvOut <- createFolds(iodata$y, k=10)
+  cvIn <- cvOut
+  for(i in 1:10){
+    cvIn[[i]] <- (1:length(iodata$y))[-cvOut[[i]]]
+  }
+  trctrl <- trainControl("cv", index=cvIn, indexOut=cvOut, allowParallel=T, savePred=F)
+  # Fit model
+  print("Training and cross validating...")
+  # GLM
+  fit.glm <- train(log(y+1)~., data=iodata, method="glm", preProcess="scale", trControl=trctrl)
+  rec <- fit.glm$results
+  yhat.glm <- fit.glm$finalModel$fitted.values
+  rec$RMSE.insample <- RMSE(exp(yhat.glm)-1, iodata$y)
+  rec$CORR.log <- cor(yhat.glm, log(iodata$y+1))
+  rec$CORR.mm <- cor(exp(yhat.glm)-1, iodata$y)
+  print("GLM")
+  print(rec)
+  results.glm <- rbind(results.glm, rec)
+  #coef.glm <- c(coef.glm, list(coef(summary(fit.glm))))
+  # SVM
+  fit.svmr <- train(log(y+1)~., data=iodata, method="svmRadial", preProcess="scale", trControl=trctrl)
+  rec <- fit.svmr$results[1,]
+  yhat.svm <- fit.svmr$finalModel@fitted
+  rec$RMSE.insample <- RMSE(exp(yhat.svm)-1, iodata$y)
+  rec$CORR.log <- cor(yhat.svm, log(iodata$y+1))
+  rec$CORR.mm <- cor(exp(yhat.svm)-1, iodata$y)
+  print("SVR")
+  print(rec)
+  results.svm <- rbind(results.svm, rec)
+  # Collection predictions
+  #y <- data.frame(NULL)
+  y <- data.frame(iodata$y)
+  y$y.glm <- yhat.glm
+  y$y.svm <- yhat.svm
+  ys <- c(ys, list(y))
+  # Save model
+  mod.glm <- c(mod.glm, list(fit.glm$finalModel))
+  mod.svm <- c(mod.svm, list(fit.svmr$finalModel))
 }
+#names(coef.glm) <- names(y.1316)
+names(ys) <- names(y.1316)
+names(mod.glm) <- names(y.1316)
+names(mod.svm) <- names(y.1316)
 # Clean up
-rm(i)
+rm(i, iodata, cvOut, cvIn, trctrl, fit.glm, fit.svmr)
+# Stop parallel
+stopCluster(cluster)
+registerDoSEQ()
 # Save
-save.image("qpf2016.RData")
-
-
-
-
-
-
+save(results.glm, results.svm, ys, file="qpf1hr1316.RData")
+save(mod.glm, file="qpf1hr1316.mod.glm.RData")
+save(mod.svm, file="qpf1hr1316.mod.svm.RData")
