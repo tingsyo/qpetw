@@ -5,6 +5,7 @@ Test script of using Keras to implement a 1D convolutional neural network (CNN) 
 """
 import os, csv, logging, argparse
 import numpy as np
+import pandas as pd
 from sklearn.decomposition import PCA, IncrementalPCA
 from sklearn.externals import joblib
 
@@ -29,30 +30,6 @@ def read_dbz(furi):
     except pd.errors.EmptyDataError:
         logging.warning(furi + " is empty.")
     return(results)
-    
-
-def fit_ipca_partial(finfo, nc=20, bs=100):
-    ipca = IncrementalPCA(n_components=nc, batch_size=bs)
-    # Loop through finfo
-    for i in range(0, len(finfo), bs):
-        # Read batch data
-        dbz = []
-        i2 = i + bs
-        if i2>len(finfo):
-            i2 = len(finfo)
-        for j in range(i, i2):
-            f = finfo[j]
-            logging.debug('Reading data from: ' + f[0])
-            tmp = read_dbz(f[0])
-            # Append new record
-            if tmp is not None:     # Append data if it is not None
-                dbz.append(tmp)
-        # Partial fit with batch data
-        dbz = np.array(dbz)
-        print(dbz.shape)
-        ipca.partial_fit(dbz)
-    #
-    return(ipca)
 
 
 def transform_dbz(ipca, finfo):
