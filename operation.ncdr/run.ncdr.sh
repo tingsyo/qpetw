@@ -1,6 +1,7 @@
 #!/bin/bash
 # Operation script for calling from schedule
 source qpetw.cfg
+dt=$(date '+%Y%m%d%H00')
 #-----------------------------------------------------------------------
 # Step 1: Data aggregation
 #-----------------------------------------------------------------------
