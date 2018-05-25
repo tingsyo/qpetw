@@ -83,10 +83,23 @@ dbz.pc20 <- read.csv(params$DBZ_INPUT, stringsAsFactors=F, fileEncoding="UTF-8-B
 attach(dbz.pc20)
 dbz.pc20 <- dbz.pc20[order(date, hhmm),]
 dbz.input <- create.input.qpe("201601311200", dbz.pc20)
-# QPE
-for(fqpe in flist.mod_qpe){
+# QPE /QPF
+for(i in 1:length(sids)){
+  # Retrieve id and models
+  id <- sids[i]
+  fqpe <- flist.mod_qpe[i]
+  fqpf <- flist.mod_qpf[i]
+  # QPE
   load(paste0(params$"MOD_PATH_QPE","/",fqpe))
   qpe <- predict(mod, newdata=dbz.input)
+  qpe <- exp(qpe) - 1
+  if(qpe<0){qpe=0}
+  print(paste(fqpe, qpe))
+  # QPF
+  load(paste0(params$"MOD_PATH_QPF","/",fqpf))
+  qpe <- predict(mod, newdata=dbz.input)
+  qpe <- exp(qpe) - 1
+  if(qpe<0){qpe=0}
   print(paste(fqpe, qpe))
 }
 
