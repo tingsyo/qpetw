@@ -66,6 +66,46 @@ create.input.qpe <- function(ts, x){
   return(newx)
 }
 
+# Perfrom QPE/QPF-1hr
+run.qpe_qpf1hr <- function(params){
+  path_mod_qpe <- params$"MOD_PATH_QPE"
+  path_mod_qpf <- params$"MOD_PATH_QPF"
+  flist.mod_qpe <- list.files(path_mod_qpe)
+  flist.mod_qpf <- list.files(path_mod_qpf)
+  sids <- substr(flist.mod_qpe,1,6)
+  # Read transformed data and create input data
+  dbz.pc20 <- read.csv(params$DBZ_INPUT, stringsAsFactors=F, fileEncoding="UTF-8-BOM")
+  attach(dbz.pc20)
+  dbz.pc20 <- dbz.pc20[order(date, hhmm),]
+  dbz.input <- create.input.qpe(params$OUTPUT_DATE, dbz.pc20)
+  detach(dbz.pc20)
+  # QPE /QPF
+  results <- NULL
+  for(i in 1:length(sids)){
+    # Retrieve id and models
+    id <- sids[i]
+    fqpe <- flist.mod_qpe[i]
+    fqpf <- flist.mod_qpf[i]
+    # QPE
+    load(paste0(params$"MOD_PATH_QPE","/",fqpe))
+    qpe <- predict(mod, newdata=dbz.input)
+    qpe <- exp(qpe) - 1
+    if(qpe<0){qpe=0}
+    #print(paste(fqpe, qpe))
+    # 1hr-QPF
+    load(paste0(params$"MOD_PATH_QPF","/",fqpf))
+    qpf <- predict(mod, newdata=dbz.input)
+    qpf <- exp(qpe) - 1
+    if(qpf<0){qpf=0}
+    #print(paste(fqpe, qpe))
+    #
+    rec <- data.frame("id"=id, "qpe"=qpe, "qpf_1hr"=qpf)
+    #print(rec)
+    results <- rbind(results, rec)
+  }
+  return(results)  
+}
+
 #=======================================================================
 # Script commands
 #=======================================================================
@@ -73,35 +113,5 @@ require(caret)
 require(kernlab)
 # Read and parse configuration file
 params <- readConfiguration("qpetw.cfg")
-path_mod_qpe <- params$"MOD_PATH_QPE"
-path_mod_qpf <- params$"MOD_PATH_QPF"
-flist.mod_qpe <- list.files(path_mod_qpe)
-flist.mod_qpf <- list.files(path_mod_qpf)
-sids <- substr(flist.mod_qpe,1,6)
-# Read transformed data and create input data
-dbz.pc20 <- read.csv(params$DBZ_INPUT, stringsAsFactors=F, fileEncoding="UTF-8-BOM")
-attach(dbz.pc20)
-dbz.pc20 <- dbz.pc20[order(date, hhmm),]
-dbz.input <- create.input.qpe("201601311200", dbz.pc20)
-# QPE /QPF
-for(i in 1:length(sids)){
-  # Retrieve id and models
-  id <- sids[i]
-  fqpe <- flist.mod_qpe[i]
-  fqpf <- flist.mod_qpf[i]
-  # QPE
-  load(paste0(params$"MOD_PATH_QPE","/",fqpe))
-  qpe <- predict(mod, newdata=dbz.input)
-  qpe <- exp(qpe) - 1
-  if(qpe<0){qpe=0}
-  print(paste(fqpe, qpe))
-  # QPF
-  load(paste0(params$"MOD_PATH_QPF","/",fqpf))
-  qpe <- predict(mod, newdata=dbz.input)
-  qpe <- exp(qpe) - 1
-  if(qpe<0){qpe=0}
-  print(paste(fqpe, qpe))
-}
-
-# 1hr-QPF
+results <- run.qpe_qpf1hr(params)
 
