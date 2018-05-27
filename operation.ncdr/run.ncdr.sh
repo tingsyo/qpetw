@@ -9,7 +9,7 @@ dt=$(date '+%Y%m%d%H00')
 #-----------------------------------------------------------------------
 # Step 2: Data preprocessing
 #-----------------------------------------------------------------------
-python3 lib/qpetw_preprocessing.py -i $DBZPATH -o $DBZ_INPUT -m $MOD_DBZPCA
+python3 lib/qpetw_preprocessing.py -i $DBZ_RAW_PATH -o $DBZ_INPUT -m $MOD_DBZPCA
 
 #-----------------------------------------------------------------------
 # Step 3: Prediction

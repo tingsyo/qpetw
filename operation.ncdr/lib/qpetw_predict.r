@@ -7,6 +7,7 @@
 #=======================================================================
 # Functions
 #=======================================================================
+#.libPaths("C:/data/tsyo/OneDrive/Documents/R/win-library/3.4")
 # Read parameters from configuration file
 readConfiguration <- function(fname){
   # Read text file
@@ -113,5 +114,6 @@ require(caret)
 require(kernlab)
 # Read and parse configuration file
 params <- readConfiguration("qpetw.cfg")
+print(paste0(params$OUTPUT_PATH,"/",params$OUTPUT_DATE,".csv"))
 results <- run.qpe_qpf1hr(params)
-
+write.csv(results, file=paste0(params$OUTPUT_PATH,"/",params$OUTPUT_DATE,".csv"), row.names=F)

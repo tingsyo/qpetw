@@ -33,3 +33,5 @@ vignettes/*.pdf
 *.knit.md
 tmp
 data
+qpf
+qpe
