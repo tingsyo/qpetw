@@ -4,7 +4,7 @@
 Test script read RADAR-dbz data in text format and convert to a dictionary of length T 
 where each element represents a 6*275*162 numpy array
 """
-import os, csv, logging, argparse
+import os, csv, logging, argparse, pickle
 import numpy as np
 import pandas as pd
 
@@ -74,22 +74,28 @@ def create_input_from_dir(sdir):
     hhmm = getDictHHMM()
     hh = list(hhmm.keys())
     # Create input label: YYYYMMDDHH
-    fdf = pd.DataFrame(finfo, columns=['furi','day','hhmm'])
+    #fdf = pd.DataFrame(finfo, columns=['furi','day','hhmm'])
     ilab = []
     flist = []
-    output = {}
+    input = []
     for d in days:
-        tmp = [f for f in finfo if f[1]==days[1]]
+        tmp = [f for f in finfo if f[1]==d]
+        print(tmp)
         for h in hh:
+            print(d+':'+h)
+            print(hhmm[h])
             f6 = [t[0] for t in tmp if t[2] in hhmm[h]]
+            f6 = sorted(f6)
             if(len(f6)==6):
-                flist.append(f6)
+                flist.append(sorted(f6))
                 ilab.append(d+h)
-                output[(d+h)] = sorted(f6)
+                for i in range(6):
+                    tmp = read_dbz(f6[i])
+                    input.append(tmp)
             else:
                 print("Time-flag "+d+h+" contains missing data, number of records: "+str(len(f6)))
     #
-    return(output)
+    return(ilab, flist, tmp)
 
 #-----------------------------------------------------------------------
 def main():
@@ -102,9 +108,15 @@ def main():
     # Set up logging
     logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
     # Create data list
-    fdict = create_input_from_dir(args.input)
+    ts, flist, data = create_input_from_dir(args.input)
     # Write out
-    np.save(args.output, fdict)
+    np.save(args.output, data)
+    with open(args.output+'.csv', 'w') as cf:
+        cw = csv.writer(cf, delimiter=',')
+        cw.writerow(['time','f1','f2','f3','f4','f5','f6'])
+        for i in range(len(ts)):
+            rec = [ts[i]]+flist[i]
+            cw.writerow(rec)
     # done
     return(0)
     
