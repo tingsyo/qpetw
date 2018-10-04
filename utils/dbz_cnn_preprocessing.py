@@ -74,28 +74,33 @@ def create_input_from_dir(sdir):
     hhmm = getDictHHMM()
     hh = list(hhmm.keys())
     # Create input label: YYYYMMDDHH
-    #fdf = pd.DataFrame(finfo, columns=['furi','day','hhmm'])
+    fdf = pd.DataFrame(finfo, columns=['furi','day','hhmm'])
     ilab = []
     flist = []
-    input = []
+    x = []
+    # Loop through days
     for d in days:
         tmp = [f for f in finfo if f[1]==d]
-        print(tmp)
+        # Loop through hours
         for h in hh:
-            print(d+':'+h)
-            print(hhmm[h])
             f6 = [t[0] for t in tmp if t[2] in hhmm[h]]
             f6 = sorted(f6)
+            # Read data if the 6-file-set is complete
+            xtmp = []
             if(len(f6)==6):
-                flist.append(sorted(f6))
+                print(d+h+" data is complete, reading data...")
+                flist.append(f6)
                 ilab.append(d+h)
                 for i in range(6):
-                    tmp = read_dbz(f6[i])
-                    input.append(tmp)
+                    dbz = read_dbz(f6[i])
+                    xtmp.append(dbz)
+                # Append 6*275*162 array to the list
+                #print(np.float32(np.array(xtmp)).shape)
+                x.append(np.float32(np.array(xtmp)))
             else:
                 print("Time-flag "+d+h+" contains missing data, number of records: "+str(len(f6)))
     #
-    return(ilab, flist, tmp)
+    return(ilab, flist, x)
 
 #-----------------------------------------------------------------------
 def main():
