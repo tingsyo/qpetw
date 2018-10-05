@@ -38,7 +38,6 @@ def getDictHHMM():
     # Done
     return(hhmmdict)
 
-
 def search_dbz(srcdir):
     import os
     fileinfo = []
@@ -65,9 +64,9 @@ def read_dbz(furi):
         logging.warning(furi + " is empty.")
     return(results)
 
-def create_input_from_dir(sdir):
+def create_input_by_hour(srcdir, outdir):
     ''' Create a stack of input data from given directory containing dbz data '''
-    finfo = search_dbz(sdir)            # Scan and parse file names
+    finfo = search_dbz(srcdir)            # Scan and parse file names
     fdays = [d[1] for d in finfo]       # Retrieve dates
     days = sorted(list(set(fdays)))     # Clean up dates
     # HHMM dictionary
@@ -77,7 +76,6 @@ def create_input_from_dir(sdir):
     fdf = pd.DataFrame(finfo, columns=['furi','day','hhmm'])
     ilab = []
     flist = []
-    x = []
     # Loop through days
     for d in days:
         tmp = [f for f in finfo if f[1]==d]
@@ -88,36 +86,37 @@ def create_input_from_dir(sdir):
             # Read data if the 6-file-set is complete
             xtmp = []
             if(len(f6)==6):
-                print(d+h+" data is complete, reading data...")
+                print("Time-flag "+d+h+" data is complete, reading data...")
                 flist.append(f6)
                 ilab.append(d+h)
                 for i in range(6):
                     dbz = read_dbz(f6[i])
                     xtmp.append(dbz)
                 # Append 6*275*162 array to the list
-                #print(np.float32(np.array(xtmp)).shape)
-                x.append(np.float32(np.array(xtmp)))
+                np.save(outdir+"/"+d+h+".npy", np.float32(np.array(xtmp)))
             else:
                 print("Time-flag "+d+h+" contains missing data, number of records: "+str(len(f6)))
     #
-    return(ilab, flist, x)
+    return(ilab, flist)
 
 #-----------------------------------------------------------------------
 def main():
     # Configure Argument Parser
     parser = argparse.ArgumentParser(description='Retrieve DBZ data for further processing.')
     parser.add_argument('--input', '-i', help='the directory containing all the DBZ data.')
-    parser.add_argument('--output', '-o', default='output.npy', help='the output file.')
+    parser.add_argument('--output', '-o', default='output', help='the output directory.')
     parser.add_argument('--log', '-l', default='tmp.log', help='the log file.')
     args = parser.parse_args()
     # Set up logging
     logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
+    # Set up output
+    if not os.path.exists(args.output):
+        os.makedirs(args.output)
     # Create data list
-    ts, flist, data = create_input_from_dir(args.input)
+    ts, flist = create_input_by_hour(args.input, args.output)
     # Write out
-    np.save(args.output, data)
-    with open(args.output+'.csv', 'w') as cf:
-        cw = csv.writer(cf, delimiter=',')
+    with open(args.output+'/index.csv', 'w') as cf:
+        cw = csv.writer(cf)
         cw.writerow(['time','f1','f2','f3','f4','f5','f6'])
         for i in range(len(ts)):
             rec = [ts[i]]+flist[i]
