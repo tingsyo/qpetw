@@ -110,19 +110,19 @@ def read_y(furi):
 def main():
     # Configure Argument Parser
     parser = argparse.ArgumentParser(description='Retrieve DBZ data for further processing.')
-    parser.add_argument('--input', '-i', help='the directory containing all the DBZ data.')
+    parser.add_argument('--inputx', '-x', help='the directory containing all the DBZ data.')
+    parser.add_argument('--inputy', '-y', help='the file containing precipitation data.')
     parser.add_argument('--output', '-o', default='output.csv', help='the output file.')
     parser.add_argument('--batch_size', '-b', default=100, type=int, help='batch size.')
-    parser.add_argument('--randomseed', '-r', help="integer as the random seed", default="1234543")
     parser.add_argument('--log', '-l', default='tmp.log', help='the log file.')
     args = parser.parse_args()
     # Set up logging
     logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
     # Read input and output
-    logging.info("Extract data from all files: "+ str(len(finfo)))
-
-    logging.info("Extract data from all files: "+ str(len(finfo)))
-    
+    logging.info("Reading input X from: "+ args.inputx)
+    xinfo = pd.read_csv(args.inputx)
+    logging.info("Reading output Y from: "+ args.inputy)
+    yraw = pd.read_csv(args.inputy)
     # Set up cross validation
     logging.info("Extract data from all files: "+ str(len(finfo)))
     
