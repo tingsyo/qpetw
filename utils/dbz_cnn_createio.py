@@ -4,7 +4,7 @@
 This script read preprocessed RADAR-dbz data and precipitation data,
 and then create paired input-output dataset.
 """
-import os, csv, logging, argparse, h5py
+import os, csv, logging, argparse, h5py, glob
 import numpy as np
 import pandas as pd
 
@@ -19,30 +19,20 @@ __status__ = "development"
 __date__ = '2018-10-04'
 
 # Parameters
-def get_dbz_info(dbzdir):
-    import os
-    fileinfo = []
-    results = []
-    for subdir, dirs, files in os.walk(dbzdir, followlinks=True):
-        for f in files:
-            if f.endswith('.npy'):
-                # Parse file name for time information
-                furi = os.path.join(subdir, f)
-                finfo = f.split('.')
-                #logging.debug([furi] + finfo[1:3])
-                fileinfo.append([furi] + finfo[1:3])
-    return(fileinfo)
+nSample = 37369                 # Total complete samples
+nLayer = 6                      # 6 10-min dbz for an hour
+nY = 275                        # y-dimension of dbz data
+nX = 162                        # x-dimension of dbz data
+batchSize = 128                 # Batch size for training / testing
+yseg_stat = [0.5, 8, 13, 29]    # 40-year statistics of hourly precipitation of trace, 90%, 95%, and 99% percentile
+yseg = [0.5, 10, 15, 30]        # Actual segmentation for precipitation
 
-
-def read_precipitation(furi):
-    import pandas as pd
-    import numpy as np
+# Functions
+def matchDate(xdate, y, hourTag='t1hr', timeLag=False):
+    ''' Given the input/output data, check for data completeness and match records by specified conditions '''
     results = None
-    try:
-        tmp = pd.read_fwf(furi, widths=[8,8,8], header=None)
-        results = np.float32(np.array(tmp.iloc[:,2])).reshape((275,162))
-    except pd.errors.EmptyDataError:
-        logging.warning(furi + " is empty.")
+    ydate = np.array(y['date'], dtype='str')
+    vd = [x for x in xdate if x in ydate]
     return(results)
 
 def create_input_by_hour(srcdir, outdir):
@@ -86,24 +76,29 @@ def main():
     parser = argparse.ArgumentParser(description='Retrieve DBZ data for further processing.')
     parser.add_argument('--rawx', '-x', help='the directory containing preprocessed DBZ data.')
     parser.add_argument('--rawy', '-y', help='the file containing the precipitation data.')
-    parser.add_argument('--input', '-i', default='x.h5py', help='the processed input data.')
-    parser.add_argument('--output', '-o', default='y.h5py', help='the processed output data.')
+    parser.add_argument('--input', '-i', default='x.hdf5', help='the processed input data.')
+    parser.add_argument('--output', '-o', default='y.hdf5', help='the processed output data.')
     parser.add_argument('--log', '-l', default='tmp.log', help='the log file.')
     args = parser.parse_args()
     # Set up logging
     logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
     # Read raw input and output
     logging.info("Reading input X from: "+ args.inputx)
-    xinfo = pd.read_csv(args.rawx)
+    xfiles = glob.glob(args.rawx+'/*.npy')
     logging.info("Reading output Y from: "+ args.inputy)
     yraw = pd.read_csv(args.rawy)
     # Find intersect of input/output dates
-    xdate = np.array(xinfo['time'], dtype='str')
+    xdate = [f.split('.')[0].split('/')[1] for f in xfiles]
     ydate = np.array(yraw['date'], dtype='str')
-    valid_date = [x for x in xdate if x in ydate]
-    # Create data list
-    
-    # Write out
+    valid_date = matchDate()   
+    nSample = len(valid_date)
+    # Create paired Input data
+    fx = h5py.File(args, 'w')
+    xdata = fx.create_dataset('x', (nSample, nLayer, nY, nX), chunks=(batchSize, nLayer, nY, nX), dtype=np.float32)
+    for i in range(nSample):
+        tmp = np.load(args.raws+'/'+valid_date[i]+'.npy')
+        xdata[i] = tmp
+    # Create paired Output data
     
     # done
     return(0)
