@@ -3,7 +3,7 @@
 """
 Test script read in grid RADAR data and learn with VGG
 """
-import os, csv, logging, argparse
+import os, csv, logging, argparse, glob, h5py
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -83,12 +83,11 @@ def createIOTable(x, y, ylab='t1hr', qpf=False):
     for i in range(md.shape[0]):
         if not (None in list(md.iloc[i,:])):
             cd.append(list(md.iloc[i,:]))
-            #print(list(md.iloc[i,:]))
     # Done
     return(pd.DataFrame(cd, columns=['date','y','xuri']))
 
 # Load input/output data for model
-def loadIOData(srcx, srcy):
+def loadIOData(srcx, srcy, xhdf5):
     # Read raw input and output
     logging.info("Reading input X from: "+ srcx)
     xfiles = glob.glob(srcx+'/*.npy')
@@ -98,7 +97,7 @@ def loadIOData(srcx, srcy):
     iotab = createIOTable(xfiles, yraw)   
     nSample = len(iotab)
     # Create paired Input data
-    fx = h5py.File(args, 'w')
+    fx = h5py.File(xhdf5, 'w')
     xdata = fx.create_dataset('x', (nSample, nLayer, nY, nX), chunks=(batchSize, nLayer, nY, nX), dtype=np.float32)
     for i in range(nSample):
         tmp = np.load(iotab['xuri'][i])
@@ -111,7 +110,7 @@ def loadIOData(srcx, srcy):
     return(ydata, xdata)
 
 # VGG model
-def init_model_vgg(input_shape):
+def init_model(input_shape):
     """
     :Return: 
       a Keras VGG-like Model to predict y using a 2D vector (regression).
@@ -121,19 +120,19 @@ def init_model_vgg(input_shape):
     # Input layer
     inputs = Input(shape=input_shape)
     # blovk1: CONV -> CONV -> MaxPooling
-    x = Conv2D(filters=64, kernel_size=(3,3), strides=(1,1), activation='relu', name='block1_conv1', kernel_initializer=initializers.glorot_normal())(inputs)
-    x = Conv2D(64, (3,3), activation='relu', name='block1_conv2', kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(filters=64, kernel_size=(3,3), strides=(1,1), activation='relu', name='block1_conv1', data_format='channels_first', kernel_initializer=initializers.glorot_normal())(inputs)
+    x = Conv2D(64, (3,3), activation='relu', name='block1_conv2', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
     x = MaxPooling2D((2,2), strides=(1,1), name='block1_pool')(x)
     x = Dropout(0.5)(x)
     # block2: CONV -> CONV -> MaxPooling
-    x = Conv2D(128, (3,3), activation='relu', name='block2_conv1', kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(128, (3,3), activation='relu', name='block2_conv2', kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(128, (3,3), activation='relu', name='block2_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(128, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     x = MaxPooling2D((2,2), strides=(1,1), name='block2_pool')(x)
     x = Dropout(0.5)(x)
     # block3: CONV -> CONV -> MaxPooling
-    x = Conv2D(256, (3,3), activation='relu', name='block3_conv1', kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(256, (3,3), activation='relu', name='block3_conv2', kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(256, (3,3), activation='relu', name='block3_conv3', kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(256, (3,3), activation='relu', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(256, (3,3), activation='relu', name='block3_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(256, (3,3), activation='relu', name='block3_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     x = MaxPooling2D((2,2), strides=(1,1), name='block3_pool')(x)
     x = Dropout(0.5)(x)
     # Output block: Flatten -> Dense -> Dense -> softmax output
@@ -176,7 +175,7 @@ def main():
     parser.add_argument('--rawy', '-y', help='the file containing the precipitation data.')
     parser.add_argument('--input', '-i', default='x.hdf5', help='the processed input data.')
     parser.add_argument('--output', '-o', default='y.hdf5', help='the processed output data.')
-    parser.add_argument('--kfold', '-k', default=5, type=int, help='K-fold cross validation.')
+    parser.add_argument('--kfold', '-k', default=3, type=int, help='K-fold cross validation.')
     parser.add_argument('--batch_size', '-b', default=128, type=int, help='batch size.')
     parser.add_argument('--log', '-l', default='tmp.log', help='the log file.')
     args = parser.parse_args()
@@ -185,25 +184,34 @@ def main():
     #-------------------------------
     # IO data generation
     #-------------------------------
-    y, x = loadIOData(args.inputx, args.inputy)
+    y, x = loadIOData(args.rawx, args.rawy, args.input)
+    print("Data dimension:")
+    print(x.shape)
     #-------------------------------
     # Cross validation
     #-------------------------------
     # Set up cross validation
     logging.info("Generate data splits for "+ str(args.kfold)+"-fold cross validation.")
     skf = StratifiedKFold(n_splits=args.kfold)
+    H = []
+    T = []
     for trainIdx, testIdx in skf.split(x, y):
-        xTrain, xTest = x[trainIdx], x[testIdx]
+        # Get indeces of training/testing set
+        xTrain, xTest = x[trainIdx,:,:,:], x[testIdx,:,:,:]
         yTrain, yTest = to_categorical(y[trainIdx]), to_categorical(y[testIdx])
-        # Train and 
+        # Train
         logging.info("Training model with " + str(len(trainIdx)) + " samples.")
-        
+        model = init_model((xTrain.shape[1:]))
+        hist = model.fit(xTrain, yTrain, epochs=10, batch_size=128, initial_epoch=0, verbose=1)
         # Test
         logging.info("Testing model with " + str(len(testIdx)) + " samples.")
-    
+        test = model.evaluate(xTest, yTest, batch_size=128)
         # Output results
-        logging.debug("Explained variance ratio: "+ str(evr))
-    
+        H.append(hist)
+        T.append(test)
+    #
+    for test in T:
+        print(test)
     # done
     return(0)
     
