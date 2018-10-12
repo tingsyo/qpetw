@@ -87,7 +87,7 @@ def createIOTable(x, y, ylab='t1hr', qpf=False):
     return(pd.DataFrame(cd, columns=['date','y','xuri']))
 
 # Load input/output data for model
-def loadIOData(srcx, srcy, xhdf5):
+def loadIOTab(srcx, srcy, test_split=0.0):
     # Read raw input and output
     logging.info("Reading input X from: "+ srcx)
     xfiles = glob.glob(srcx+'/*.npy')
@@ -96,19 +96,20 @@ def loadIOData(srcx, srcy, xhdf5):
     # Create complete IO-data
     iotab = createIOTable(xfiles, yraw)   
     nSample = len(iotab)
-    # Create paired Input data
-    fx = h5py.File(xhdf5, 'w')
-    xdata = fx.create_dataset('x', (nSample, nLayer, nY, nX), chunks=(batchSize, nLayer, nY, nX), dtype=np.float32)
-    for i in range(nSample):
-        tmp = np.load(iotab['xuri'][i])
-        xdata[i] = tmp
-    # Create categorized output data
-    y = np.array(iotab['y'], dtype=np.float32).reshape(nSample, 1)
-    ydata = np.digitize(y, yseg)
-    #ydata = to_categorical(ycat)
+    # Create data split
+    nTrain = int(nSample*(1-test_split))
+    nTest = nSample - nTrain
     # Done
-    return(ydata, xdata)
+    return(iotab)
 
+def loadDBZ(flist):
+    xdata = []
+    for g in flist:
+        tmp = np.load(f)
+        xdata.append(tmp)
+    x = np.array(xdata, dtype=np.float32)
+    return(x)
+    
 # VGG model
 def init_model(input_shape):
     """
@@ -149,17 +150,35 @@ def init_model(input_shape):
     model.compile(loss='binary_crossentropy', optimizer=sgd, metrics=['accuracy'])
     return(model)
 
-def data_generator():
+def data_generator(iotab, batch_size):
+    # Read raw input and output
+    logging.info("Reading input X from: "+ srcx)
+    xfiles = glob.glob(srcx+'/*.npy')
+    logging.info("Reading output Y from: "+ srcy)
+    yraw = pd.read_csv(srcy)
+    # Create complete IO-data
+    iotab = createIOTable(xfiles, yraw)   
+    y = np.array(iotab['y'], dtype=np.float32).reshape(nSample, 1)
+    nSample = len(iotab)
+    # This line is just to make the generator infinite, keras needs that    
+    while True:
+        batch_start = 0
+        batch_end = batch_size
+        while batch_start < nSample:
+            limit = min(batch_end, nSample)
+            X = loadDBZ(iotab['xuri'][batch_start:limit])
+            Y = to_categorical(np.digitize(y[batch_start:limit], yseg))
+            yield (X,Y) #a tuple with two numpy arrays with batch_size samples     
+            batch_start += batch_size   
+            batch_end += batch_size
+    # End of generator
     
-
 #-----------------------------------------------------------------------
 def main():
     # Configure Argument Parser
     parser = argparse.ArgumentParser(description='Retrieve DBZ data for further processing.')
     parser.add_argument('--rawx', '-x', help='the directory containing preprocessed DBZ data.')
     parser.add_argument('--rawy', '-y', help='the file containing the precipitation data.')
-    parser.add_argument('--input', '-i', default='x.hdf5', help='the processed input data.')
-    parser.add_argument('--output', '-o', default='y.hdf5', help='the processed output data.')
     parser.add_argument('--kfold', '-k', default=3, type=int, help='K-fold cross validation.')
     parser.add_argument('--batch_size', '-b', default=128, type=int, help='batch size.')
     parser.add_argument('--log', '-l', default='tmp.log', help='the log file.')
@@ -169,7 +188,7 @@ def main():
     #-------------------------------
     # IO data generation
     #-------------------------------
-    y, x = loadIOData(args.rawx, args.rawy, args.input)
+    y, x = loadIOTab(args.rawx, args.rawy, )
     print("Data dimension:")
     print(x.shape)
     #-------------------------------
