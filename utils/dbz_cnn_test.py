@@ -64,7 +64,7 @@ def createIOTable(x, y, ylab='t1hr', qpf=False):
     '''
     import pandas as pd
     # Clean up dates of x and y
-    xdate = [f.split('.')[0].split('/')[-1] for f in x]
+    xdate = [f.split('.')[0].split(os.path.sep)[-1] for f in x]
     ydate = np.array(y['date'], dtype='str')
     xfull = zip(xdate, x)                                   # Pair up date of x and the uri
     x_in_y = [x for x in xfull if x[0] in ydate]            # Valid xdate: xdate existing in ydate
@@ -90,7 +90,7 @@ def createIOTable(x, y, ylab='t1hr', qpf=False):
 def loadIOTab(srcx, srcy, test_split=0.0):
     # Read raw input and output
     logging.info("Reading input X from: "+ srcx)
-    xfiles = glob.glob(srcx+'/*.npy')
+    xfiles = glob.glob(srcx+ os.path.sep +'*.npy')
     logging.info("Reading output Y from: "+ srcy)
     yraw = pd.read_csv(srcy)
     # Create complete IO-data
@@ -104,7 +104,7 @@ def loadIOTab(srcx, srcy, test_split=0.0):
 
 def loadDBZ(flist):
     xdata = []
-    for g in flist:
+    for f in flist:
         tmp = np.load(f)
         xdata.append(tmp)
     x = np.array(xdata, dtype=np.float32)
@@ -126,16 +126,16 @@ def init_model(input_shape):
     x = MaxPooling2D((2,2), strides=(1,1), name='block1_pool')(x)
     x = Dropout(0.5)(x)
     # block2: CONV -> CONV -> MaxPooling
-    x = Conv2D(128, (3,3), activation='relu', name='block2_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(128, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = MaxPooling2D((2,2), strides=(1,1), name='block2_pool')(x)
-    x = Dropout(0.5)(x)
+#    x = Conv2D(128, (3,3), activation='relu', name='block2_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+#    x = Conv2D(128, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+#    x = MaxPooling2D((2,2), strides=(1,1), name='block2_pool')(x)
+#    x = Dropout(0.5)(x)
     # block3: CONV -> CONV -> MaxPooling
-    x = Conv2D(256, (3,3), activation='relu', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(256, (3,3), activation='relu', name='block3_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(256, (3,3), activation='relu', name='block3_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = MaxPooling2D((2,2), strides=(1,1), name='block3_pool')(x)
-    x = Dropout(0.5)(x)
+#    x = Conv2D(256, (3,3), activation='relu', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+#    x = Conv2D(256, (3,3), activation='relu', name='block3_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+#    x = Conv2D(256, (3,3), activation='relu', name='block3_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+#    x = MaxPooling2D((2,2), strides=(1,1), name='block3_pool')(x)
+#    x = Dropout(0.5)(x)
     # Output block: Flatten -> Dense -> Dense -> softmax output
     x = Flatten()(x)
     x = Dense(512, activation='relu', name='fc1')(x)
@@ -151,15 +151,8 @@ def init_model(input_shape):
     return(model)
 
 def data_generator(iotab, batch_size):
-    # Read raw input and output
-    logging.info("Reading input X from: "+ srcx)
-    xfiles = glob.glob(srcx+'/*.npy')
-    logging.info("Reading output Y from: "+ srcy)
-    yraw = pd.read_csv(srcy)
-    # Create complete IO-data
-    iotab = createIOTable(xfiles, yraw)   
-    y = np.array(iotab['y'], dtype=np.float32).reshape(nSample, 1)
     nSample = len(iotab)
+    y = np.array(iotab['y'], dtype=np.float32).reshape(nSample, 1)
     # This line is just to make the generator infinite, keras needs that    
     while True:
         batch_start = 0
@@ -188,20 +181,19 @@ def main():
     #-------------------------------
     # IO data generation
     #-------------------------------
-    y, x = loadIOTab(args.rawx, args.rawy, )
+    iotab = loadIOTab(args.rawx, args.rawy)
     print("Data dimension:")
-    print(x.shape)
+    print(iotab.shape)
     #-------------------------------
     # Test dnn
     #-------------------------------
     # Train
-    logging.info("Training model with " + str(len(x)) + " samples.")
-    model = init_model((xTrain.shape[1:]))
-    hist = model.fit(x, to_categorical(y), epochs=1, batch_size=128, initial_epoch=0, verbose=1)
+    #logging.info("Training model with " + str(len(x)) + " samples.")
+    model = init_model((nLayer, nY, nX))
+    print(model.summary())
+    hist = model.fit_generator(data_generator(iotab, args.batch_size), steps_per_epoch=10, epochs=1, verbose=1)
     # Output results
-    #
-    for test in T:
-        print(test)
+    print(h)
     # done
     return(0)
     
