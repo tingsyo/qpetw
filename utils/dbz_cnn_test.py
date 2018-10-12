@@ -3,7 +3,7 @@
 """
 Test script read in grid RADAR data and learn with VGG
 """
-import os, csv, logging, argparse, glob, h5py
+import os, csv, logging, argparse, glob, h5py, pickle
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -87,7 +87,7 @@ def createIOTable(x, y, ylab='t1hr', qpf=False):
     return(pd.DataFrame(cd, columns=['date','y','xuri']))
 
 # Load input/output data for model
-def loadIOTab(srcx, srcy, test_split=0.0):
+def loadIOTab(srcx, srcy, test_split=0.0, shuffle=False):
     # Read raw input and output
     logging.info("Reading input X from: "+ srcx)
     xfiles = glob.glob(srcx+ os.path.sep +'*.npy')
@@ -98,9 +98,10 @@ def loadIOTab(srcx, srcy, test_split=0.0):
     nSample = len(iotab)
     # Create data split
     nTrain = int(nSample*(1-test_split))
-    nTest = nSample - nTrain
+    if shuffle:
+       iotab = iotab.sample(frac=1).reset_index(drop=True)
     # Done
-    return(iotab)
+    return({'train':iotab[:nTrain], 'test':iotab[nTrain:]})
 
 def loadDBZ(flist):
     xdata = []
@@ -138,9 +139,9 @@ def init_model(input_shape):
 #    x = Dropout(0.5)(x)
     # Output block: Flatten -> Dense -> Dense -> softmax output
     x = Flatten()(x)
-    x = Dense(512, activation='relu', name='fc1')(x)
+    x = Dense(128, activation='relu', name='fc1')(x)
     x = Dropout(0.8)(x)
-    x = Dense(512, activation='relu', name='fc2')(x)
+    x = Dense(128, activation='relu', name='fc2')(x)
     # Output layer
     out = Dense(5, activation='sigmoid', name='main_output')(x)
     # Initialize model
@@ -181,9 +182,13 @@ def main():
     #-------------------------------
     # IO data generation
     #-------------------------------
-    iotab = loadIOTab(args.rawx, args.rawy)
-    print("Data dimension:")
-    print(iotab.shape)
+    iotab = loadIOTab(args.rawx, args.rawy, test_split=0.1, shuffle=True)
+    print("Training data dimension:")
+    print(iotab['train'].shape)
+    steps_train = int(len(iotab['train'])/args.batch_size)
+    print("Testing data dimension:")
+    print(iotab['test'].shape)
+    steps_test = int(len(iotab['test'])/args.batch_size)
     #-------------------------------
     # Test dnn
     #-------------------------------
@@ -191,9 +196,12 @@ def main():
     #logging.info("Training model with " + str(len(x)) + " samples.")
     model = init_model((nLayer, nY, nX))
     print(model.summary())
-    hist = model.fit_generator(data_generator(iotab, args.batch_size), steps_per_epoch=10, epochs=1, verbose=1)
+    hist = model.fit_generator(data_generator(iotab['train'], args.batch_size), steps_per_epoch=steps_train,
+           validation_data=data_generator(iotab['test'], args.batch_size), validation_steps=steps_test,
+           epochs=1, use_multiprocessing=True, verbose=1)
     # Output results
-    print(h)
+    with open(args.output, 'wb') as fout:
+        pickle.dump(hist.history, fout)
     # done
     return(0)
     
