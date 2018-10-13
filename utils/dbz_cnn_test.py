@@ -77,14 +77,10 @@ def createIOTable(x, y, ylab='t1hr', qpf=False):
     # Match days
     md = pd.DataFrame({'date':ydate, 'y':np.array(y[ylab], dtype=np.float32), 'x':None})
     md = md.iloc[xidx,:]
-    md['x'] = xuri
     # Scan for complete x-y records
-    cd = []
-    for i in range(md.shape[0]):
-        if not (None in list(md.iloc[i,:])):
-            cd.append(list(md.iloc[i,:]))
+    cd = md.loc[~np.isnan(md['y']),:]
     # Done
-    return(pd.DataFrame(cd, columns=['date','y','xuri']))
+    return(cd.reset_index())
 
 # Load input/output data for model
 def loadIOTab(srcx, srcy, test_split=0.0, shuffle=False):
@@ -173,6 +169,7 @@ def main():
     parser = argparse.ArgumentParser(description='Retrieve DBZ data for further processing.')
     parser.add_argument('--rawx', '-x', help='the directory containing preprocessed DBZ data.')
     parser.add_argument('--rawy', '-y', help='the file containing the precipitation data.')
+    parser.add_argument('--output', '-o', help='the file to store training history.')
     parser.add_argument('--kfold', '-k', default=3, type=int, help='K-fold cross validation.')
     parser.add_argument('--batch_size', '-b', default=128, type=int, help='batch size.')
     parser.add_argument('--log', '-l', default='tmp.log', help='the log file.')
@@ -197,11 +194,13 @@ def main():
     model = init_model((nLayer, nY, nX))
     print(model.summary())
     hist = model.fit_generator(data_generator(iotab['train'], args.batch_size), steps_per_epoch=steps_train,
-           validation_data=data_generator(iotab['test'], args.batch_size), validation_steps=steps_test,
            epochs=1, use_multiprocessing=True, verbose=1)
+    y_pred = model.predict_generator(data_generator(iotab['test'], args.batch_size), steps=steps_test,
+             use_multiprocessing=True, verbose=1)
+    y_com = {'y_true':iotab['test']['y'], 'y_pred':y_pred}
     # Output results
     with open(args.output, 'wb') as fout:
-        pickle.dump(hist.history, fout)
+        pickle.dump({'history':hist.history, 'validation':y_com}, fout)
     # done
     return(0)
     
