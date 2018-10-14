@@ -159,7 +159,7 @@ def data_generator(iotab, batch_size):
         while batch_start < nSample:
             limit = min(batch_end, nSample)
             X = loadDBZ(iotab['xuri'][batch_start:limit])
-            Y = to_categorical(np.digitize(y[batch_start:limit], yseg))
+            Y = to_categorical(np.digitize(y[batch_start:limit], yseg),num_classes=5)
             print(X.shape)
             yield (X,Y) #a tuple with two numpy arrays with batch_size samples     
             batch_start += batch_size   
