@@ -80,6 +80,7 @@ def createIOTable(x, y, ylab='t1hr', qpf=False):
     md['xuri'] = xuri
     # Scan for complete x-y records
     cd = md.loc[~np.isnan(md['y']),:]
+    cd['ycat'] = np.digitize(cd['y'], yseg)
     # Done
     return(cd)
 
