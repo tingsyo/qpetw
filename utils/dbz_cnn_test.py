@@ -9,7 +9,7 @@ import pandas as pd
 import tensorflow as tf
 import random as rn
 # For cross-validation
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, train_test_split
 # For fixing random state: block1
 os.environ['PYTHONHASHSEED'] = '0'
 np.random.seed(14221)
@@ -94,11 +94,13 @@ def loadIOTab(srcx, srcy, test_split=0.0, shuffle=False):
     iotab = createIOTable(xfiles, yraw)   
     nSample = len(iotab)
     # Create data split
-    nTrain = int(nSample*(1-test_split))
-    if shuffle:
-       iotab = iotab.sample(frac=1).reset_index(drop=True)
+    # nTrain = int(nSample*(1-test_split))
+    # if shuffle:
+    #    iotab = iotab.sample(frac=1).reset_index(drop=True)
+    # Create training/testing split using sklearn.model_selection.train_test_split
+    iotrain, iotest = train_test_split(iotab, test_size=test_split, stratify=np.digitize(iotab['y'], yseg), shuffle=shuffle)
     # Done
-    return({'train':iotab[:nTrain], 'test':iotab[nTrain:]})
+    return({'train':iotrain, 'test':iotest})
 
 def loadDBZ(flist):
     xdata = []
@@ -119,34 +121,36 @@ def init_model(input_shape):
     # Input layer
     inputs = Input(shape=input_shape)
     # blovk1: CONV -> CONV -> MaxPooling
-    x = Conv2D(filters=64, kernel_size=(4,4), strides=(2,2), activation='relu', name='block1_conv1', data_format='channels_first', kernel_initializer=initializers.glorot_normal())(inputs)
-    x = Conv2D(64, (4,4), activation='relu', name='block1_conv2', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(64, (4,4), activation='relu', name='block1_conv3', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
-    x = MaxPooling2D((2,2), strides=(2,2), name='block1_pool')(x)
+    x = Conv2D(filters=32, kernel_size=(3,3), activation='relu', name='block1_conv1', data_format='channels_first', kernel_initializer=initializers.glorot_normal())(inputs)
+#    x = Conv2D(32, (3,3), activation='relu', name='block1_conv2', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
+#    x = Conv2D(32, (3,3), activation='relu', name='block1_conv3', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
+    x = MaxPooling2D((3,3), strides=(1,1), name='block1_pool')(x)
     x = Dropout(0.5)(x)
     # block2: CONV -> CONV -> MaxPooling
-#    x = Conv2D(128, (3,3), activation='relu', name='block2_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-#    x = Conv2D(128, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-#    x = MaxPooling2D((2,2), strides=(1,1), name='block2_pool')(x)
-#    x = Dropout(0.5)(x)
+    x = Conv2D(64, (3,3), activation='relu', name='block2_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+#    x = Conv2D(64, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+#    x = Conv2D(64, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = MaxPooling2D((2,2), strides=(1,1), name='block2_pool')(x)
+    x = Dropout(0.5)(x)
     # block3: CONV -> CONV -> MaxPooling
-#    x = Conv2D(256, (3,3), activation='relu', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-#    x = Conv2D(256, (3,3), activation='relu', name='block3_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-#    x = Conv2D(256, (3,3), activation='relu', name='block3_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-#    x = MaxPooling2D((2,2), strides=(1,1), name='block3_pool')(x)
-#    x = Dropout(0.5)(x)
+    x = Conv2D(128, (3,3), activation='relu', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+#    x = Conv2D(128, (3,3), activation='relu', name='block3_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+#    x = Conv2D(128, (3,3), activation='relu', name='block3_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = MaxPooling2D((2,2), strides=(1,1), name='block3_pool')(x)
+    x = Dropout(0.5)(x)
     # Output block: Flatten -> Dense -> Dense -> softmax output
     x = Flatten()(x)
-    x = Dense(128, activation='relu', name='fc1')(x)
+#    x = Dense(256, activation='relu', name='fc1')(x)
     x = Dropout(0.8)(x)
-    x = Dense(128, activation='relu', name='fc2')(x)
+    x = Dense(256, activation='relu', name='fc2')(x)
     # Output layer
     out = Dense(5, activation='sigmoid', name='main_output')(x)
     # Initialize model
     model = Model(inputs = inputs, outputs = out)
     # Define compile parameters
-    sgd = SGD(lr=0.1, momentum=1e-8, decay=0.01, nesterov=True, clipvalue=1.)
-    model.compile(loss='binary_crossentropy', optimizer=sgd, metrics=['accuracy'])
+    adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01, clipvalue=1.)
+    #sgd = SGD(lr=0.1, momentum=1e-8, decay=0.01, nesterov=True, clipvalue=1.)
+    model.compile(loss='binary_crossentropy', optimizer=adam, metrics=['accuracy'])
     return(model)
 
 def data_generator(iotab, batch_size):
@@ -206,7 +210,8 @@ def main():
     y_pred = model.predict_generator(data_generator(iotab['test'], args.batch_size), steps=steps_test,
              use_multiprocessing=True, verbose=1)
     # Prepare output
-    y_com = {'y_true':iotab['test']['y'], 'y_pred':[np.argmax(y) for y in y_pred]}
+    yt = iotab['test']['y']
+    y_com = {'y': yt, 'y_true':np.digitize(yt, yseg), 'y_pred':[np.argmax(y) for y in y_pred]}
     # Output results
     with open(args.output, 'wb') as fout:
         pickle.dump({'iotable': iotab, 'model':model.summary(), 'history':hist.history, 'validation':y_com}, fout)
