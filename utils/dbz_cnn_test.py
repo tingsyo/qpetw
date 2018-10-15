@@ -99,18 +99,18 @@ def loadIOTab(srcx, srcy, test_split=0.0, shuffle=False):
     # if shuffle:
     #    iotab = iotab.sample(frac=1).reset_index(drop=True)
     # Create training/testing split using sklearn.model_selection.train_test_split
-    iotrain, iotest = train_test_split(iotab, test_size=test_split, stratify=np.digitize(iotab['y'], yseg), shuffle=shuffle)
+    iotrain, iotest = train_test_split(iotab, test_size=test_split, stratify=iotab['ycat'], shuffle=shuffle)
     # Done
     return({'train':iotrain, 'test':iotest})
 
-def loadDBZ(flist):
-    xdata = []
-    for f in flist:
-        tmp = np.load(f)
-        xdata.append(tmp)
-    x = np.array(xdata, dtype=np.float32)
-    return(x)
-    
+def to_onehot(y, nclasses=5):
+    ''' Represent the given y vector into one-hot encoding of 5 classes (0,1,2,3,4). '''
+    L = len(y)                                          # Length of vector y
+    yoh = np.zeros((L, nclasses), dtype=np.float32)     # The one-hot encoding, initialized with 0
+    for i in range(L):
+        yoh[i, y[i]] = 1                                # Encode the corresponding class
+    return(yoh)
+
 # VGG model
 def init_model(input_shape):
     """
@@ -125,23 +125,23 @@ def init_model(input_shape):
     x = Conv2D(filters=32, kernel_size=(3,3), activation='relu', name='block1_conv1', data_format='channels_first', kernel_initializer=initializers.glorot_normal())(inputs)
 #    x = Conv2D(32, (3,3), activation='relu', name='block1_conv2', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
 #    x = Conv2D(32, (3,3), activation='relu', name='block1_conv3', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
-    x = MaxPooling2D((3,3), strides=(1,1), name='block1_pool')(x)
+    x = MaxPooling2D((2,2), name='block1_pool')(x)
     x = Dropout(0.5)(x)
     # block2: CONV -> CONV -> MaxPooling
     x = Conv2D(64, (3,3), activation='relu', name='block2_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
 #    x = Conv2D(64, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
 #    x = Conv2D(64, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = MaxPooling2D((2,2), strides=(1,1), name='block2_pool')(x)
+    x = MaxPooling2D((2,2), name='block2_pool')(x)
     x = Dropout(0.5)(x)
     # block3: CONV -> CONV -> MaxPooling
     x = Conv2D(128, (3,3), activation='relu', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
 #    x = Conv2D(128, (3,3), activation='relu', name='block3_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
 #    x = Conv2D(128, (3,3), activation='relu', name='block3_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = MaxPooling2D((2,2), strides=(1,1), name='block3_pool')(x)
+    x = MaxPooling2D((2,2), name='block3_pool')(x)
     x = Dropout(0.5)(x)
     # Output block: Flatten -> Dense -> Dense -> softmax output
     x = Flatten()(x)
-#    x = Dense(256, activation='relu', name='fc1')(x)
+    x = Dense(256, activation='relu', name='fc1')(x)
     x = Dropout(0.8)(x)
     x = Dense(256, activation='relu', name='fc2')(x)
     # Output layer
@@ -154,9 +154,20 @@ def init_model(input_shape):
     model.compile(loss='binary_crossentropy', optimizer=adam, metrics=['accuracy'])
     return(model)
 
+def loadDBZ(flist):
+    ''' Load a list a dbz files (in npy format) into one numpy array. '''
+    xdata = []
+    for f in flist:
+        tmp = np.load(f)
+        xdata.append(tmp)
+    x = np.array(xdata, dtype=np.float32)
+    return(x)
+    
 def data_generator(iotab, batch_size):
+    ''' Data generator for batched processing. '''
     nSample = len(iotab)
-    y = np.array(iotab['y'], dtype=np.float32).reshape(nSample, 1)
+    y = np.array(iotab['ycat']).reshape(nSample, 1)
+    print(y[:5])
     # This line is just to make the generator infinite, keras needs that    
     while True:
         batch_start = 0
@@ -164,7 +175,7 @@ def data_generator(iotab, batch_size):
         while batch_start < nSample:
             limit = min(batch_end, nSample)
             X = loadDBZ(iotab['xuri'][batch_start:limit])
-            Y = to_categorical(np.digitize(y[batch_start:limit], yseg),num_classes=5)
+            Y = to_onehot(y)
             print(X.shape)
             yield (X,Y) #a tuple with two numpy arrays with batch_size samples     
             batch_start += batch_size   
@@ -210,9 +221,10 @@ def main():
     # Prediction
     y_pred = model.predict_generator(data_generator(iotab['test'], args.batch_size), steps=steps_test,
              use_multiprocessing=True, verbose=1)
+    print(y_pred[:5])
     # Prepare output
     yt = iotab['test']['y']
-    y_com = {'y': yt, 'y_true':np.digitize(yt, yseg), 'y_pred':[np.argmax(y) for y in y_pred]}
+    y_com = {'y': yt, 'y_true':iotab['test']['ycat'], 'y_pred':[np.argmax(y) for y in y_pred]}
     # Output results
     with open(args.output, 'wb') as fout:
         pickle.dump({'iotable': iotab, 'model':model.summary(), 'history':hist.history, 'validation':y_com}, fout)
