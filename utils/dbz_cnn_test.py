@@ -80,7 +80,7 @@ def createIOTable(x, y, ylab='t1hr', qpf=False):
     md['xuri'] = xuri
     # Scan for complete x-y records
     cd = md.loc[~np.isnan(md['y']),:]
-    cd['ycat'] = np.digitize(cd['y'], yseg)
+    cd['ycat'] = np.digitize(cd.loc['y'], yseg)
     # Done
     return(cd)
 
@@ -167,7 +167,7 @@ def data_generator(iotab, batch_size):
     ''' Data generator for batched processing. '''
     nSample = len(iotab)
     y = np.array(iotab['ycat']).reshape(nSample, 1)
-    print(y[:5])
+    #print(y[:5])
     # This line is just to make the generator infinite, keras needs that    
     while True:
         batch_start = 0
@@ -175,8 +175,8 @@ def data_generator(iotab, batch_size):
         while batch_start < nSample:
             limit = min(batch_end, nSample)
             X = loadDBZ(iotab['xuri'][batch_start:limit])
-            Y = to_onehot(y)
-            print(X.shape)
+            Y = to_onehot(y[batch_start:limit])
+            #print(X.shape)
             yield (X,Y) #a tuple with two numpy arrays with batch_size samples     
             batch_start += batch_size   
             batch_end += batch_size
@@ -208,11 +208,11 @@ def main():
     # Debug info
     print(model.summary())
     print("Training data samples: "+str(iotab['train'].shape[0]))
-    steps_train = int(len(iotab['train'])/args.batch_size)
+    steps_train = int(len(iotab['train'])/args.batch_size) + 1
     print("Training data steps: " + str(steps_train))
     print(iotab['train'][:5])
     print("Testing data samples: "+ str(iotab['test'].shape[0]))
-    steps_test = int(len(iotab['test'])/args.batch_size)
+    steps_test = int(len(iotab['test'])/args.batch_size) + 1
     print("Testing data steps: " + str(steps_test))
     print(iotab['test'][:5])
     # Fitting model
@@ -224,10 +224,10 @@ def main():
     print(y_pred[:5])
     # Prepare output
     yt = iotab['test']['y']
-    y_com = {'y': yt, 'y_true':iotab['test']['ycat'], 'y_pred':[np.argmax(y) for y in y_pred]}
+    y_com = {'y': yt, 'y_true':iotab['test']['ycat'],'y_pred':[np.argmax(y) for y in y_pred]}
     # Output results
     with open(args.output, 'wb') as fout:
-        pickle.dump({'iotable': iotab, 'model':model.summary(), 'history':hist.history, 'validation':y_com}, fout)
+        pickle.dump({'iotable': iotab, 'history':hist.history, 'y':y_com, 'pred':y_pred}, fout)
     # done
     return(0)
     
