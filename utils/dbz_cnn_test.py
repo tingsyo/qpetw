@@ -77,10 +77,10 @@ def createIOTable(x, y, ylab='t1hr', qpf=False):
     # Match days
     md = pd.DataFrame({'date':ydate, 'y':np.array(y[ylab], dtype=np.float32), 'xuri':None})
     md = md.iloc[xidx,:]
-    md['xuri'] = xuri
+    md.loc['xuri'] = xuri
     # Scan for complete x-y records
     cd = md.loc[~np.isnan(md['y']),:]
-    cd['ycat'] = np.digitize(cd.loc['y'], yseg)
+    cd.loc[:,'ycat'] = np.digitize(cd['y'], yseg)
     # Done
     return(cd)
 
@@ -123,21 +123,21 @@ def init_model(input_shape):
     inputs = Input(shape=input_shape)
     # blovk1: CONV -> CONV -> MaxPooling
     x = Conv2D(filters=32, kernel_size=(3,3), activation='relu', name='block1_conv1', data_format='channels_first', kernel_initializer=initializers.glorot_normal())(inputs)
-#    x = Conv2D(32, (3,3), activation='relu', name='block1_conv2', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
-#    x = Conv2D(32, (3,3), activation='relu', name='block1_conv3', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
-    x = MaxPooling2D((2,2), name='block1_pool')(x)
+    x = Conv2D(32, (3,3), activation='relu', name='block1_conv2', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(32, (3,3), activation='relu', name='block1_conv3', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
+    x = MaxPooling2D((2,2), name='block1_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # block2: CONV -> CONV -> MaxPooling
     x = Conv2D(64, (3,3), activation='relu', name='block2_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-#    x = Conv2D(64, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-#    x = Conv2D(64, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = MaxPooling2D((2,2), name='block2_pool')(x)
+    x = Conv2D(64, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(64, (3,3), activation='relu', name='block2_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = MaxPooling2D((2,2), name='block2_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # block3: CONV -> CONV -> MaxPooling
     x = Conv2D(128, (3,3), activation='relu', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-#    x = Conv2D(128, (3,3), activation='relu', name='block3_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-#    x = Conv2D(128, (3,3), activation='relu', name='block3_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = MaxPooling2D((2,2), name='block3_pool')(x)
+    x = Conv2D(128, (3,3), activation='relu', name='block3_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(128, (3,3), activation='relu', name='block3_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = MaxPooling2D((2,2), name='block3_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # Output block: Flatten -> Dense -> Dense -> softmax output
     x = Flatten()(x)
@@ -224,8 +224,15 @@ def main():
     print(y_pred[:5])
     # Prepare output
     yt = iotab['test']['y']
-    y_com = {'y': yt, 'y_true':iotab['test']['ycat'],'y_pred':[np.argmax(y) for y in y_pred]}
+    y_com = pd.DataFrame({'y': yt, 'y_true':iotab['test']['ycat'],'y_pred':[np.argmax(y) for y in y_pred]})
+    conftab = pd.crosstab(y_com['y_true'], y_com['y_pred'])
+    print(conftab)
     # Output results
+    with open('ys.csv','w') as cf:
+        y_com.to_csv(cf)
+    with open('preds.csv','w') as cf2:
+        pd.DataFrame(y_pred, columns=['0','1','2','3','4'])
+        
     with open(args.output, 'wb') as fout:
         pickle.dump({'iotable': iotab, 'history':hist.history, 'y':y_com, 'pred':y_pred}, fout)
     # done
