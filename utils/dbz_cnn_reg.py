@@ -145,13 +145,13 @@ def init_model(input_shape):
     x = Dropout(0.8)(x)
     x = Dense(256, activation='relu', name='fc2')(x)
     # Output layer
-    out = Dense(5, activation='sigmoid', name='main_output')(x)
+    out = Dense(1, activation='linear', name='main_output')(x)
     # Initialize model
     model = Model(inputs = inputs, outputs = out)
     # Define compile parameters
     adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01, clipvalue=1.)
     #sgd = SGD(lr=0.1, momentum=1e-8, decay=0.01, nesterov=True, clipvalue=1.)
-    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+    model.compile(loss='mse', optimizer=adam, metrics=['mae'])
     return(model)
 
 def loadDBZ(flist):
@@ -166,8 +166,7 @@ def loadDBZ(flist):
 def data_generator(iotab, batch_size):
     ''' Data generator for batched processing. '''
     nSample = len(iotab)
-    y = np.array(iotab['ycat'])
-    x = np.array(iotab['xuri'])
+    y = np.array(iotab['ycat']).reshape(nSample, 1)
     #print(y[:5])
     # This line is just to make the generator infinite, keras needs that    
     while True:
@@ -175,8 +174,8 @@ def data_generator(iotab, batch_size):
         batch_end = batch_size
         while batch_start < nSample:
             limit = min(batch_end, nSample)
-            X = loadDBZ(x[batch_start:limit])
-            Y = to_onehot(y[batch_start:limit])
+            X = loadDBZ(iotab.loc[batch_start:limit,'xuri'])
+            Y = y[batch_start:limit]
             #print(X.shape)
             yield (X,Y) #a tuple with two numpy arrays with batch_size samples     
             batch_start += batch_size   
@@ -229,10 +228,10 @@ def main():
     conftab = pd.crosstab(y_com['y_true'], y_com['y_pred'])
     print(conftab)
     # Output results
-    with open('mlc.ys.csv','w') as cf:
+    with open('reg.ys.csv','w') as cf:
         y_com.to_csv(cf)
     #
-    with open('mlc.preds.csv','w') as cf2:
+    with open('reg.preds.csv','w') as cf2:
         pd.DataFrame(y_pred).to_csv(cf2)
     #
     with open(args.output, 'wb') as fout:
