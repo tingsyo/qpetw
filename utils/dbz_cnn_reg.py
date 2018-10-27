@@ -11,9 +11,9 @@ import random as rn
 # For cross-validation
 from sklearn.model_selection import StratifiedKFold, train_test_split
 # For fixing random state: block1
-os.environ['PYTHONHASHSEED'] = '0'
-np.random.seed(14221)
-rn.seed(12345)
+#os.environ['PYTHONHASHSEED'] = '0'
+#np.random.seed(14221)
+#rn.seed(12345)
 #session_conf = tf.ConfigProto(intra_op_parallelism_threads=1, inter_op_parallelism_threads=1)
 # For fixing random state: block1
 from keras.layers import Input, Dropout, Dense, Flatten, Activation
@@ -26,7 +26,7 @@ from keras import initializers
 from keras.utils import normalize, to_categorical
 import keras.backend as K
 # For fixing random state: block2
-tf.set_random_seed(1234)
+#tf.set_random_seed(1234)
 #sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
 #K.set_session(sess)
 # For fixing random state: block2
@@ -151,7 +151,7 @@ def init_model(input_shape):
     # Define compile parameters
     adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01, clipvalue=1.)
     sgd = SGD(lr=0.1, momentum=1e-8, decay=0.01, nesterov=True, clipvalue=1.)
-    model.compile(loss='mse', optimizer=sgd, metrics=['mae'])
+    model.compile(loss='mse', optimizer=adam, metrics=['mae'])
     return(model)
 
 def loadDBZ(flist):
