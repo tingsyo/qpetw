@@ -108,7 +108,7 @@ def to_onehot(y, nclasses=5):
     L = len(y)                                          # Length of vector y
     yoh = np.zeros((L, nclasses), dtype=np.float32)     # The one-hot encoding, initialized with 0
     for i in range(L):
-        yoh[i, y[i]] = 1                                # Encode the corresponding class
+        yoh[i, y[i]] = 1                           # Encode the corresponding class
     return(yoh)
 
 # VGG model
@@ -149,7 +149,7 @@ def init_model(input_shape):
     # Initialize model
     model = Model(inputs = inputs, outputs = out)
     # Define compile parameters
-    adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01, clipvalue=1.)
+    #adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01, clipvalue=1.)
     #sgd = SGD(lr=0.1, momentum=1e-8, decay=0.01, nesterov=True, clipvalue=1.)
     model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
     return(model)
@@ -192,7 +192,7 @@ def main():
     parser.add_argument('--output', '-o', help='the file to store training history.')
     parser.add_argument('--split', '-s', default=0.2, type=np.float32, help='testing split ratio.')
     parser.add_argument('--batch_size', '-b', default=128, type=int, help='batch size.')
-    parser.add_argument('--log', '-l', default='reg.log', help='the log file.')
+    parser.add_argument('--log', '-l', default='mlc.log', help='the log file.')
     args = parser.parse_args()
     # Set up logging
     logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
@@ -218,7 +218,7 @@ def main():
     print(iotab['test'][:5])
     # Fitting model
     hist = model.fit_generator(data_generator(iotab['train'], args.batch_size), steps_per_epoch=steps_train,
-           epochs=1, use_multiprocessing=True, verbose=1)
+           epochs=10, use_multiprocessing=True, verbose=1)
     # Prediction
     y_pred = model.predict_generator(data_generator(iotab['test'], args.batch_size), steps=steps_test,
              use_multiprocessing=True, verbose=1)
