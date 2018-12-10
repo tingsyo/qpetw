@@ -87,11 +87,14 @@ def createIOTable(x, y, ylab='t1hr', qpf=False):
 # Load input/output data for model
 def loadIOTab(srcx, srcy, test_split=0.0, shuffle=False):
     # Read raw input and output
-    logging.info("Reading input X from: "+ srcx)
+    #logging.info("Reading input X from: "+ srcx)
+    print("Reading input X from: "+ srcx)
     xfiles = glob.glob(srcx+ os.path.sep +'*.npy')
-    logging.info("Reading output Y from: "+ srcy)
+    #logging.info("Reading output Y from: "+ srcy)
+    print("Reading output Y from: "+ srcy)
     yraw = pd.read_csv(srcy)
     # Create complete IO-data
+    print("Pairing X-Y and splitting training/testing data.")
     iotab = createIOTable(xfiles, yraw)   
     nSample = len(iotab)
     # Create data split
@@ -99,17 +102,9 @@ def loadIOTab(srcx, srcy, test_split=0.0, shuffle=False):
     # if shuffle:
     #    iotab = iotab.sample(frac=1).reset_index(drop=True)
     # Create training/testing split using sklearn.model_selection.train_test_split
-    iotrain, iotest = train_test_split(iotab, test_size=test_split, stratify=iotab.loc[:,'ycat'], shuffle=shuffle)
+    iotrain, iotest = train_test_split(iotab, test_size=test_split, stratify=iotab.loc[:,'y'], shuffle=shuffle)
     # Done
     return({'train':iotrain, 'test':iotest})
-
-def to_onehot(y, nclasses=5):
-    ''' Represent the given y vector into one-hot encoding of 5 classes (0,1,2,3,4). '''
-    L = len(y)                                          # Length of vector y
-    yoh = np.zeros((L, nclasses), dtype=np.float32)     # The one-hot encoding, initialized with 0
-    for i in range(L):
-        yoh[i, y[i]] = 1                                # Encode the corresponding class
-    return(yoh)
 
 # VGG model
 def init_model(input_shape):
@@ -163,10 +158,21 @@ def loadDBZ(flist):
     x = np.array(xdata, dtype=np.float32)
     return(x)
     
-def data_generator(iotab, batch_size):
+def y_to_log(y):
+    ''' Convert the y to log(y+1). '''
+    ylog = np.log(y+1).astype(np.float32)
+    return(ylog)
+
+def log_to_y(y):
+    ''' Convert the predicted y in log-scale back to original scale. '''
+    yori = (np.exp(y.flatten())-1.0).astype(np.float32)
+    yori[yori<0.] = 0.                          # Set the minimal values to 0.
+    return(yori)
+
+def data_generator_reg(iotab, batch_size):
     ''' Data generator for batched processing. '''
     nSample = len(iotab)
-    y = np.array(iotab['ycat'], dtype=np.float32).reshape(nSample, 1)
+    y = np.array(iotab['y'], dtype=np.float32).reshape(nSample, 1)
     #print(y[:5])
     # This line is just to make the generator infinite, keras needs that    
     while True:
@@ -174,8 +180,8 @@ def data_generator(iotab, batch_size):
         batch_end = batch_size
         while batch_start < nSample:
             limit = min(batch_end, nSample)
-            X = loadDBZ(iotab['xuri'][batch_start:limit])
-            Y = y[batch_start:limit]
+            X = loadDBZ(iotab['xuri'][batch_start:limit])/100.
+            Y = y_to_log(y[batch_start:limit])
             #print(X.shape)
             yield (X,Y) #a tuple with two numpy arrays with batch_size samples     
             batch_start += batch_size   
@@ -216,15 +222,16 @@ def main():
     print("Testing data steps: " + str(steps_test))
     print(iotab['test'][:5])
     # Fitting model
-    hist = model.fit_generator(data_generator(iotab['train'], args.batch_size), steps_per_epoch=steps_train,
+    hist = model.fit_generator(data_generator_reg(iotab['train'], args.batch_size), steps_per_epoch=steps_train,
            epochs=1, use_multiprocessing=True, verbose=1)
     # Prediction
-    y_pred = model.predict_generator(data_generator(iotab['test'], args.batch_size), steps=steps_test,
+    y_pred = model.predict_generator(data_generator_reg(iotab['test'], args.batch_size), steps=steps_test,
              use_multiprocessing=True, verbose=1)
+    yp = log_to_y(y_pred)
     print(y_pred[:5])
     # Prepare output
     yt = iotab['test']['y']
-    y_com = pd.DataFrame({'y': yt, 'y_true':iotab['test']['ycat'],'y_pred': y_pred.flatten()})
+    y_com = pd.DataFrame({'y': yt, 'y_cat':iotab['test']['ycat'],'y_log': y_pred.flatten(), 'y_pred':yp})
     #conftab = pd.crosstab(y_com['y_true'], y_com['y_pred'])
     #print(conftab)
     # Output results
