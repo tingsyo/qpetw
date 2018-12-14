@@ -102,7 +102,7 @@ def loadIOTab(srcx, srcy, test_split=0.0, shuffle=False):
     # if shuffle:
     #    iotab = iotab.sample(frac=1).reset_index(drop=True)
     # Create training/testing split using sklearn.model_selection.train_test_split
-    iotrain, iotest = train_test_split(iotab, test_size=test_split, stratify=iotab.loc[:,'y'], shuffle=shuffle)
+    iotrain, iotest = train_test_split(iotab, test_size=test_split, shuffle=shuffle)
     # Done
     return({'train':iotrain, 'test':iotest})
 
@@ -134,18 +134,25 @@ def init_model(input_shape):
     x = Conv2D(128, (3,3), activation='relu', name='block3_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     x = MaxPooling2D((2,2), name='block3_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
+    # block4: CONV -> CONV -> MaxPooling
+    x = Conv2D(256, (3,3), activation='relu', name='block4_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(256, (3,3), activation='relu', name='block4_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(256, (3,3), activation='relu', name='block4_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = MaxPooling2D((2,2), name='block4_pool', data_format='channels_first')(x)
+    x = Dropout(0.5)(x)
     # Output block: Flatten -> Dense -> Dense -> softmax output
     x = Flatten()(x)
-    x = Dense(256, activation='relu', name='fc1')(x)
+    x = Dense(512, activation='relu', name='fc1')(x)
     x = Dropout(0.8)(x)
-    x = Dense(256, activation='relu', name='fc2')(x)
+    x = Dense(512, activation='relu', name='fc2')(x)
     # Output layer
     out = Dense(1, activation='linear', name='main_output')(x)
     # Initialize model
     model = Model(inputs = inputs, outputs = out)
     # Define compile parameters
-    adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01, clipvalue=1.)
-    sgd = SGD(lr=0.1, momentum=1e-8, decay=0.01, nesterov=True, clipvalue=1.)
+    #adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01, clipvalue=1.)
+    adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-06, decay=0.1, clipvalue=1.)
+    #sgd = SGD(lr=0.1, momentum=1e-8, decay=0.01, nesterov=True, clipvalue=1.)
     model.compile(loss='mse', optimizer=adam, metrics=['mae'])
     return(model)
 
@@ -166,7 +173,7 @@ def y_to_log(y):
 def log_to_y(y):
     ''' Convert the predicted y in log-scale back to original scale. '''
     yori = (np.exp(y.flatten())-1.0).astype(np.float32)
-    yori[yori<0.] = 0.                          # Set the minimal values to 0.
+    yori[yori<0.5] = 0.                          # Set the minimal values to 0.
     return(yori)
 
 def data_generator_reg(iotab, batch_size):
@@ -200,7 +207,7 @@ def main():
     parser.add_argument('--log', '-l', default='reg.log', help='the log file.')
     args = parser.parse_args()
     # Set up logging
-    logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
+    #logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
     #-------------------------------
     # IO data generation
     #-------------------------------
@@ -223,7 +230,7 @@ def main():
     print(iotab['test'][:5])
     # Fitting model
     hist = model.fit_generator(data_generator_reg(iotab['train'], args.batch_size), steps_per_epoch=steps_train,
-           epochs=1, use_multiprocessing=True, verbose=1)
+           epochs=2, use_multiprocessing=True, verbose=0)
     # Prediction
     y_pred = model.predict_generator(data_generator_reg(iotab['test'], args.batch_size), steps=steps_test,
              use_multiprocessing=True, verbose=1)
