@@ -119,41 +119,40 @@ def init_model(input_shape):
     # blovk1: CONV -> CONV -> MaxPooling
     x = Conv2D(filters=32, kernel_size=(3,3), activation='relu', name='block1_conv1', data_format='channels_first', kernel_initializer=initializers.glorot_normal())(inputs)
     x = Conv2D(32, (3,3), activation='relu', name='block1_conv2', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(32, (3,3), activation='relu', name='block1_conv3', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(32, (3,3), activation='relu', name='block1_conv3', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
     x = MaxPooling2D((2,2), name='block1_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # block2: CONV -> CONV -> MaxPooling
     x = Conv2D(64, (3,3), activation='relu', name='block2_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     x = Conv2D(64, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(64, (3,3), activation='relu', name='block2_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(64, (3,3), activation='relu', name='block2_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     x = MaxPooling2D((2,2), name='block2_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # block3: CONV -> CONV -> MaxPooling
-    x = Conv2D(128, (3,3), activation='relu', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(128, (3,3), activation='relu', name='block3_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(128, (3,3), activation='relu', name='block3_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = MaxPooling2D((2,2), name='block3_pool', data_format='channels_first')(x)
-    x = Dropout(0.5)(x)
+    #x = Conv2D(128, (3,3), activation='relu', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(128, (3,3), activation='relu', name='block3_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(128, (3,3), activation='relu', name='block3_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    #x = MaxPooling2D((2,2), name='block3_pool', data_format='channels_first')(x)
+    #x = Dropout(0.5)(x)
     # block4: CONV -> CONV -> MaxPooling
-    x = Conv2D(256, (3,3), activation='relu', name='block4_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(256, (3,3), activation='relu', name='block4_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(256, (3,3), activation='relu', name='block4_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = MaxPooling2D((2,2), name='block4_pool', data_format='channels_first')(x)
-    x = Dropout(0.5)(x)
+    #x = Conv2D(256, (3,3), activation='relu', name='block4_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(256, (3,3), activation='relu', name='block4_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(256, (3,3), activation='relu', name='block4_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    #x = MaxPooling2D((2,2), name='block4_pool', data_format='channels_first')(x)
+    #x = Dropout(0.5)(x)
     # Output block: Flatten -> Dense -> Dense -> softmax output
     x = Flatten()(x)
-    x = Dense(512, activation='relu', name='fc1')(x)
+    x = Dense(128, activation='relu', name='fc1')(x)
     x = Dropout(0.8)(x)
-    x = Dense(512, activation='relu', name='fc2')(x)
+    x = Dense(128, activation='relu', name='fc2')(x)
     # Output layer
     out = Dense(1, activation='linear', name='main_output')(x)
     # Initialize model
     model = Model(inputs = inputs, outputs = out)
     # Define compile parameters
     #adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01, clipvalue=1.)
-    adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-06, decay=0.1, clipvalue=1.)
-    #sgd = SGD(lr=0.1, momentum=1e-8, decay=0.01, nesterov=True, clipvalue=1.)
-    model.compile(loss='mse', optimizer=adam, metrics=['mae'])
+    sgd = SGD(lr=0.1, momentum=1e-8, decay=0.01, nesterov=True, clipvalue=1.)
+    model.compile(loss='mse', optimizer=sgd, metrics=['mae'])
     return(model)
 
 def loadDBZ(flist):
@@ -230,12 +229,13 @@ def main():
     print(iotab['test'][:5])
     # Fitting model
     hist = model.fit_generator(data_generator_reg(iotab['train'], args.batch_size), steps_per_epoch=steps_train,
-           epochs=2, use_multiprocessing=True, verbose=0)
+           epochs=5, use_multiprocessing=True, verbose=0)
     # Prediction
     y_pred = model.predict_generator(data_generator_reg(iotab['test'], args.batch_size), steps=steps_test,
              use_multiprocessing=True, verbose=1)
     yp = log_to_y(y_pred)
-    print(y_pred[:5])
+    print('Mean of yp: ' + str(yp.mean()))
+    print('Variance of yp: ' + str(yp.var()))
     # Prepare output
     yt = iotab['test']['y']
     y_com = pd.DataFrame({'y': yt, 'y_cat':iotab['test']['ycat'],'y_log': y_pred.flatten(), 'y_pred':yp})
