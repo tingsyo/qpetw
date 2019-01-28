@@ -118,22 +118,22 @@ def init_model(input_shape):
     inputs = Input(shape=input_shape)
     # blovk1: CONV -> CONV -> MaxPooling
     x = Conv2D(filters=32, kernel_size=(3,3), activation='relu', name='block1_conv1', data_format='channels_first', kernel_initializer=initializers.glorot_normal())(inputs)
-    x = Conv2D(32, (3,3), activation='relu', name='block1_conv2', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(32, (3,3), activation='relu', name='block1_conv2', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(32, (3,3), activation='relu', name='block1_conv3', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
     x = MaxPooling2D((2,2), name='block1_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # block2: CONV -> CONV -> MaxPooling
     x = Conv2D(64, (3,3), activation='relu', name='block2_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(64, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(64, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(64, (3,3), activation='relu', name='block2_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     x = MaxPooling2D((2,2), name='block2_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # block3: CONV -> CONV -> MaxPooling
-    #x = Conv2D(128, (3,3), activation='relu', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(128, (3,3), activation='relu', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(128, (3,3), activation='relu', name='block3_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(128, (3,3), activation='relu', name='block3_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    #x = MaxPooling2D((2,2), name='block3_pool', data_format='channels_first')(x)
-    #x = Dropout(0.5)(x)
+    x = MaxPooling2D((2,2), name='block3_pool', data_format='channels_first')(x)
+    x = Dropout(0.5)(x)
     # block4: CONV -> CONV -> MaxPooling
     #x = Conv2D(256, (3,3), activation='relu', name='block4_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(256, (3,3), activation='relu', name='block4_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
@@ -151,7 +151,7 @@ def init_model(input_shape):
     model = Model(inputs = inputs, outputs = out)
     # Define compile parameters
     #adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01, clipvalue=1.)
-    sgd = SGD(lr=0.1, momentum=1e-8, decay=0.01, nesterov=True, clipvalue=1.)
+    sgd = SGD(lr=0.01, momentum=1e-8, decay=0.001, nesterov=True)#, clipvalue=1.)
     model.compile(loss='mse', optimizer=sgd, metrics=['mae'])
     return(model)
 
@@ -234,6 +234,8 @@ def main():
     y_pred = model.predict_generator(data_generator_reg(iotab['test'], args.batch_size), steps=steps_test,
              use_multiprocessing=True, verbose=1)
     yp = log_to_y(y_pred)
+    print('Mean of yp_log: ' + str(y_pred.mean()))
+    print('Variance of yp_log: ' + str(y_pred.var()))
     print('Mean of yp: ' + str(yp.mean()))
     print('Variance of yp: ' + str(yp.var()))
     # Prepare output
