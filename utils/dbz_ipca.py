@@ -108,12 +108,14 @@ def main():
     # Fit Incremental PCA
     logging.info("Performing IncrementalPCA with "+ str(args.n_components)+" components and batch size of" + str(args.batch_size))
     ipca = fit_ipca_partial(finfo, nc=args.n_components, bs=args.batch_size)
+    ev = ipca.explained_variance_
     evr = ipca.explained_variance_ratio_
     com = np.transpose(ipca.components_)
     logging.info("Explained variance ratio: "+ str(evr))
     # Output components
     com_header = ['pc'+str(x+1) for x in range(args.n_components)]
     writeToCsv(com, args.output.replace('.csv','.components.csv'), header=com_header)
+    pd.DataFrame({'ev':ev, 'evr':evr}).to_csv(args.output.replace('.csv','.exp_var.csv'))
     # Output fitted IPCA model
     joblib.dump(ipca, args.output.replace(".csv",".pca.mod"))
 
