@@ -4,7 +4,7 @@
 This script reads RADAR-dbz data in text format (275*162 values with lon/lat), and performs 
 convolutional autoencoder algorithm to reduce the data diemnsion. 
 """
-import os, csv, logging, argparse, pickle, h5py, json
+import os, csv, logging, argparse, pickle, h5py, json, glob
 import numpy as np
 import pandas as pd
 from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D
@@ -94,14 +94,14 @@ def main():
     parser.add_argument('--output', '-o', default='output', help='the file to store training history.')
     parser.add_argument('--batch_size', '-b', default=128, type=int, help='batch size.')
     parser.add_argument('--epochs', '-e', default=1, type=int, help='number of epochs.')
-    parser.add_argument('--log', '-l', default='reg.log', help='the log file.')
+    parser.add_argument('--log', '-l', default='ae.log', help='the log file.')
     args = parser.parse_args()
     # Set up logging
     #logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
     #-------------------------------
     # Find all files
     #-------------------------------
-    fs = glob.glob(args.rawx)
+    fs = glob.glob(args.rawx + os.sep + '*.npy')
     nSample = len(fs)
     #-------------------------------
     # Test dnn
@@ -111,11 +111,11 @@ def main():
     ae = initialize_autoencoder_qpesums((nLayer, nY, nX))
     # Debug info
     print(ae[0].summary())
-    print("Training autoencoder with data size: "+str(len(fs))
+    print("Training autoencoder with data size: "+str(len(fs)))
     steps_train = np.ceil(nSample/args.batch_size)
     print("Training data steps: " + str(steps_train))
     # Fitting model
-    hist = ae[0].fit_generator(data_generator_reg(fs, args.batch_size), steps_per_epoch=steps_train,epochs=args.epochs, max_queue_size=args.batch_size, use_multiprocessing=True, verbose=0)
+    hist = ae[0].fit_generator(data_generator_ae(fs, args.batch_size), steps_per_epoch=steps_train,epochs=args.epochs, max_queue_size=args.batch_size, use_multiprocessing=True, verbose=0)
     # Prepare output
     pd.DataFrame(hist.history).to_csv(args.output+'_hist.csv')
     ae[0].save(args.output+'_ae.h5')

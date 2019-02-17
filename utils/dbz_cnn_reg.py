@@ -10,6 +10,7 @@ import tensorflow as tf
 import random as rn
 # For cross-validation
 from sklearn.model_selection import StratifiedKFold, train_test_split
+import sklearn.metrics as metrics
 # For fixing random state: block1
 #os.environ['PYTHONHASHSEED'] = '0'
 #np.random.seed(14221)
@@ -118,22 +119,22 @@ def init_model(input_shape):
     inputs = Input(shape=input_shape)
     # blovk1: CONV -> CONV -> MaxPooling
     x = Conv2D(filters=32, kernel_size=(3,3), activation='relu', name='block1_conv1', data_format='channels_first', kernel_initializer=initializers.glorot_normal())(inputs)
-    #x = Conv2D(32, (3,3), activation='relu', name='block1_conv2', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(32, (3,3), activation='relu', name='block1_conv2', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(32, (3,3), activation='relu', name='block1_conv3', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
     x = MaxPooling2D((2,2), name='block1_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # block2: CONV -> CONV -> MaxPooling
     x = Conv2D(64, (3,3), activation='relu', name='block2_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    #x = Conv2D(64, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(64, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(64, (3,3), activation='relu', name='block2_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     x = MaxPooling2D((2,2), name='block2_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # block3: CONV -> CONV -> MaxPooling
-    x = Conv2D(128, (3,3), activation='relu', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(128, (3,3), activation='relu', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(128, (3,3), activation='relu', name='block3_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(128, (3,3), activation='relu', name='block3_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = MaxPooling2D((2,2), name='block3_pool', data_format='channels_first')(x)
-    x = Dropout(0.5)(x)
+    #x = MaxPooling2D((2,2), name='block3_pool', data_format='channels_first')(x)
+    #x = Dropout(0.5)(x)
     # block4: CONV -> CONV -> MaxPooling
     #x = Conv2D(256, (3,3), activation='relu', name='block4_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(256, (3,3), activation='relu', name='block4_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
@@ -193,6 +194,18 @@ def data_generator_reg(iotab, batch_size):
             batch_start += batch_size   
             batch_end += batch_size
     # End of generator
+
+def report_evaluation(y_true, y_pred):
+    print('Mean of y_true: ' + str(y_true.mean()))
+    print('Variance of y_true: ' + str(y_true.var()))
+    print('Mean of y_pred: ' + str(y_pred.mean()))
+    print('Variance of y_pred: ' + str(y_pred.var()))
+    rmse = np.sqrt(metrics.mean_squared_error(y_true,y_pred))
+    corr = np.corrcorf(y_true,y_pred)[0,1]
+    print('RMSE: ' + str(rmse))
+    print('Corr: ' + str(corr))
+    return({'rmse':rmse,'corr':corr})
+
     
 #-----------------------------------------------------------------------
 def main():
@@ -229,10 +242,10 @@ def main():
     print(iotab['test'][:5])
     # Fitting model
     hist = model.fit_generator(data_generator_reg(iotab['train'], args.batch_size), steps_per_epoch=steps_train,
-           epochs=5, use_multiprocessing=True, verbose=0)
+           epochs=10, use_multiprocessing=True, verbose=1)
     # Prediction
     y_pred = model.predict_generator(data_generator_reg(iotab['test'], args.batch_size), steps=steps_test,
-             use_multiprocessing=True, verbose=1)
+             use_multiprocessing=True, verbose=0)
     yp = log_to_y(y_pred)
     print('Mean of yp_log: ' + str(y_pred.mean()))
     print('Variance of yp_log: ' + str(y_pred.var()))
@@ -241,6 +254,7 @@ def main():
     # Prepare output
     yt = iotab['test']['y']
     y_com = pd.DataFrame({'y': yt, 'y_cat':iotab['test']['ycat'],'y_log': y_pred.flatten(), 'y_pred':yp})
+    results = report_evaluation(yt, yp)
     #conftab = pd.crosstab(y_com['y_true'], y_com['y_pred'])
     #print(conftab)
     # Output results
