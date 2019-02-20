@@ -115,7 +115,7 @@ def main():
     steps_train = np.ceil(nSample/args.batch_size)
     print("Training data steps: " + str(steps_train))
     # Fitting model
-    hist = ae[0].fit_generator(data_generator_ae(fs, args.batch_size), steps_per_epoch=steps_train,epochs=args.epochs, max_queue_size=args.batch_size, use_multiprocessing=True, verbose=0)
+    hist = ae[0].fit_generator(data_generator_ae(fs, args.batch_size), steps_per_epoch=steps_train,epochs=args.epochs, max_queue_size=args.batch_size, use_multiprocessing=False, verbose=1)
     # Prepare output
     pd.DataFrame(hist.history).to_csv(args.output+'_hist.csv')
     ae[0].save(args.output+'_ae.h5')
