@@ -119,33 +119,33 @@ def init_model(input_shape):
     inputs = Input(shape=input_shape)
     # blovk1: CONV -> CONV -> MaxPooling
     x = Conv2D(filters=32, kernel_size=(3,3), activation='relu', name='block1_conv1', data_format='channels_first', kernel_initializer=initializers.glorot_normal())(inputs)
-    x = Conv2D(32, (3,3), activation='relu', name='block1_conv2', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(32, (3,3), activation='relu', name='block1_conv2', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(32, (3,3), activation='relu', name='block1_conv3', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
     x = MaxPooling2D((2,2), name='block1_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # block2: CONV -> CONV -> MaxPooling
     x = Conv2D(64, (3,3), activation='relu', name='block2_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(64, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(64, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(64, (3,3), activation='relu', name='block2_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     x = MaxPooling2D((2,2), name='block2_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # block3: CONV -> CONV -> MaxPooling
-    #x = Conv2D(128, (3,3), activation='relu', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(128, (3,3), activation='relu', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(128, (3,3), activation='relu', name='block3_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(128, (3,3), activation='relu', name='block3_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    #x = MaxPooling2D((2,2), name='block3_pool', data_format='channels_first')(x)
-    #x = Dropout(0.5)(x)
+    x = MaxPooling2D((2,2), name='block3_pool', data_format='channels_first')(x)
+    x = Dropout(0.5)(x)
     # block4: CONV -> CONV -> MaxPooling
-    #x = Conv2D(256, (3,3), activation='relu', name='block4_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(256, (3,3), activation='relu', name='block4_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(256, (3,3), activation='relu', name='block4_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(256, (3,3), activation='relu', name='block4_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    #x = MaxPooling2D((2,2), name='block4_pool', data_format='channels_first')(x)
-    #x = Dropout(0.5)(x)
+    x = MaxPooling2D((2,2), name='block4_pool', data_format='channels_first')(x)
+    x = Dropout(0.5)(x)
     # Output block: Flatten -> Dense -> Dense -> softmax output
     x = Flatten()(x)
-    x = Dense(128, activation='relu', name='fc1')(x)
+    x = Dense(512, activation='relu', name='fc1')(x)
     x = Dropout(0.8)(x)
-    x = Dense(128, activation='relu', name='fc2')(x)
+    #x = Dense(128, activation='relu', name='fc2')(x)
     # Output layer
     out = Dense(1, activation='linear', name='main_output')(x)
     # Initialize model
@@ -153,7 +153,7 @@ def init_model(input_shape):
     # Define compile parameters
     #adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01, clipvalue=1.)
     sgd = SGD(lr=0.01, momentum=1e-8, decay=0.001, nesterov=True)#, clipvalue=1.)
-    model.compile(loss='mse', optimizer=sgd, metrics=['mae'])
+    model.compile(loss='mse', optimizer=sgd, metrics=['mae','cosine_proximity'])
     return(model)
 
 def loadDBZ(flist):
@@ -201,7 +201,7 @@ def report_evaluation(y_true, y_pred):
     print('Mean of y_pred: ' + str(y_pred.mean()))
     print('Variance of y_pred: ' + str(y_pred.var()))
     rmse = np.sqrt(metrics.mean_squared_error(y_true,y_pred))
-    corr = np.corrcorf(y_true,y_pred)[0,1]
+    corr = np.corrcoef(y_true,y_pred)[0,1]
     print('RMSE: ' + str(rmse))
     print('Corr: ' + str(corr))
     return({'rmse':rmse,'corr':corr})
@@ -216,6 +216,7 @@ def main():
     parser.add_argument('--output', '-o', help='the file to store training history.')
     parser.add_argument('--split', '-s', default=0.2, type=np.float32, help='testing split ratio.')
     parser.add_argument('--batch_size', '-b', default=128, type=int, help='batch size.')
+    parser.add_argument('--epochs', '-e', default=1, type=int, help='number of epochs.')
     parser.add_argument('--log', '-l', default='reg.log', help='the log file.')
     args = parser.parse_args()
     # Set up logging
@@ -242,10 +243,10 @@ def main():
     print(iotab['test'][:5])
     # Fitting model
     hist = model.fit_generator(data_generator_reg(iotab['train'], args.batch_size), steps_per_epoch=steps_train,
-           epochs=10, use_multiprocessing=True, verbose=1)
+           epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
     # Prediction
     y_pred = model.predict_generator(data_generator_reg(iotab['test'], args.batch_size), steps=steps_test,
-             use_multiprocessing=True, verbose=0)
+             verbose=0)
     yp = log_to_y(y_pred)
     print('Mean of yp_log: ' + str(y_pred.mean()))
     print('Variance of yp_log: ' + str(y_pred.var()))
@@ -255,17 +256,9 @@ def main():
     yt = iotab['test']['y']
     y_com = pd.DataFrame({'y': yt, 'y_cat':iotab['test']['ycat'],'y_log': y_pred.flatten(), 'y_pred':yp})
     results = report_evaluation(yt, yp)
-    #conftab = pd.crosstab(y_com['y_true'], y_com['y_pred'])
-    #print(conftab)
     # Output results
-    with open('reg.ys.csv','w') as cf:
-        y_com.to_csv(cf)
-    #
-    #with open('reg.preds.csv','w') as cf2:
-    #    pd.DataFrame(y_pred).to_csv(cf2)
-    #
-    with open(args.output, 'wb') as fout:
-        pickle.dump({'iotable': iotab, 'history':hist.history, 'y':y_com, 'pred':y_pred}, fout)
+    y_com.to_csv('reg.ys.csv')
+    pd.DataFrame(hist.history).to_csv('hist.csv')
     # done
     return(0)
     
