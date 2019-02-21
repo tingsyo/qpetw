@@ -123,27 +123,33 @@ def init_model(input_shape):
     inputs = Input(shape=input_shape)
     # blovk1: CONV -> CONV -> MaxPooling
     x = Conv2D(filters=32, kernel_size=(3,3), activation='relu', name='block1_conv1', data_format='channels_first', kernel_initializer=initializers.glorot_normal())(inputs)
-    x = Conv2D(32, (3,3), activation='relu', name='block1_conv2', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(32, (3,3), activation='relu', name='block1_conv3', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(32, (3,3), activation='relu', name='block1_conv2', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(32, (3,3), activation='relu', name='block1_conv3', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
     x = MaxPooling2D((2,2), name='block1_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # block2: CONV -> CONV -> MaxPooling
     x = Conv2D(64, (3,3), activation='relu', name='block2_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(64, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(64, (3,3), activation='relu', name='block2_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(64, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(64, (3,3), activation='relu', name='block2_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     x = MaxPooling2D((2,2), name='block2_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # block3: CONV -> CONV -> MaxPooling
     x = Conv2D(128, (3,3), activation='relu', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(128, (3,3), activation='relu', name='block3_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = Conv2D(128, (3,3), activation='relu', name='block3_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(128, (3,3), activation='relu', name='block3_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(128, (3,3), activation='relu', name='block3_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     x = MaxPooling2D((2,2), name='block3_pool', data_format='channels_first')(x)
+    x = Dropout(0.5)(x)
+    # block4: CONV -> CONV -> MaxPooling
+    x = Conv2D(256, (3,3), activation='relu', name='block4_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(256, (3,3), activation='relu', name='block4_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    #x = Conv2D(256, (3,3), activation='relu', name='block4_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = MaxPooling2D((2,2), name='block4_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # Output block: Flatten -> Dense -> Dense -> softmax output
     x = Flatten()(x)
-    x = Dense(256, activation='relu', name='fc1')(x)
+    x = Dense(512, activation='relu', name='fc1')(x)
     x = Dropout(0.8)(x)
-    x = Dense(256, activation='relu', name='fc2')(x)
+    x = Dense(128, activation='relu', name='fc2')(x)
     # Output layer
     out = Dense(5, activation='sigmoid', name='main_output')(x)
     # Initialize model
@@ -192,6 +198,7 @@ def main():
     parser.add_argument('--output', '-o', help='the file to store training history.')
     parser.add_argument('--split', '-s', default=0.2, type=np.float32, help='testing split ratio.')
     parser.add_argument('--batch_size', '-b', default=128, type=int, help='batch size.')
+    parser.add_argument('--epochs', '-e', default=1, type=int, help='number of epochs.')
     parser.add_argument('--log', '-l', default='mlc.log', help='the log file.')
     args = parser.parse_args()
     # Set up logging
@@ -217,11 +224,9 @@ def main():
     print("Testing data steps: " + str(steps_test))
     print(iotab['test'][:5])
     # Fitting model
-    hist = model.fit_generator(data_generator(iotab['train'], args.batch_size), steps_per_epoch=steps_train,
-           epochs=10, use_multiprocessing=True, verbose=1)
+    hist = model.fit_generator(data_generator(iotab['train'], args.batch_size), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
     # Prediction
-    y_pred = model.predict_generator(data_generator(iotab['test'], args.batch_size), steps=steps_test,
-             use_multiprocessing=True, verbose=1)
+    y_pred = model.predict_generator(data_generator(iotab['test'], args.batch_size), steps=steps_test, verbose=0)
     print(y_pred[:5])
     # Prepare output
     yt = iotab['test']['y']
@@ -229,14 +234,11 @@ def main():
     conftab = pd.crosstab(y_com['y_true'], y_com['y_pred'])
     print(conftab)
     # Output results
-    with open('mlc.ys.csv','w') as cf:
-        y_com.to_csv(cf)
-    #
-    with open('mlc.preds.csv','w') as cf2:
-        pd.DataFrame(y_pred).to_csv(cf2)
-    #
-    with open(args.output, 'wb') as fout:
-        pickle.dump({'iotable': iotab, 'history':hist.history, 'y':y_com, 'pred':y_pred}, fout)
+    y_com.to_csv('mlc.ys.csv')
+    pd.DataFrame(y_pred).to_csv('mlc.preds.csv')
+    pd.DataFrame(hist.history).to_csv('mlc.hist.csv')
+    # Save model
+    model.save(args.output)
     # done
     return(0)
     

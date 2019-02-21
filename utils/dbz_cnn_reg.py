@@ -145,15 +145,15 @@ def init_model(input_shape):
     x = Flatten()(x)
     x = Dense(512, activation='relu', name='fc1')(x)
     x = Dropout(0.8)(x)
-    #x = Dense(128, activation='relu', name='fc2')(x)
+    x = Dense(128, activation='relu', name='fc2')(x)
     # Output layer
     out = Dense(1, activation='linear', name='main_output')(x)
     # Initialize model
     model = Model(inputs = inputs, outputs = out)
     # Define compile parameters
-    #adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01, clipvalue=1.)
-    sgd = SGD(lr=0.01, momentum=1e-8, decay=0.001, nesterov=True)#, clipvalue=1.)
-    model.compile(loss='mse', optimizer=sgd, metrics=['mae','cosine_proximity'])
+    adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01, clipvalue=1.)
+    #sgd = SGD(lr=0.01, momentum=1e-8, decay=0.001, nesterov=True)#, clipvalue=1.)
+    model.compile(loss='mse', optimizer=adam, metrics=['mae','cosine_proximity'])
     return(model)
 
 def loadDBZ(flist):
@@ -242,11 +242,9 @@ def main():
     print("Testing data steps: " + str(steps_test))
     print(iotab['test'][:5])
     # Fitting model
-    hist = model.fit_generator(data_generator_reg(iotab['train'], args.batch_size), steps_per_epoch=steps_train,
-           epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
+    hist = model.fit_generator(data_generator_reg(iotab['train'], args.batch_size), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
     # Prediction
-    y_pred = model.predict_generator(data_generator_reg(iotab['test'], args.batch_size), steps=steps_test,
-             verbose=0)
+    y_pred = model.predict_generator(data_generator_reg(iotab['test'], args.batch_size), steps=steps_test, verbose=0)
     yp = log_to_y(y_pred)
     print('Mean of yp_log: ' + str(y_pred.mean()))
     print('Variance of yp_log: ' + str(y_pred.var()))
@@ -259,6 +257,8 @@ def main():
     # Output results
     y_com.to_csv('reg.ys.csv')
     pd.DataFrame(hist.history).to_csv('hist.csv')
+    # Save model
+    model.save(args.output)
     # done
     return(0)
     
