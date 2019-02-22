@@ -256,7 +256,7 @@ def main():
     results = report_evaluation(yt, yp)
     # Output results
     y_com.to_csv('reg.ys.csv')
-    pd.DataFrame(hist.history).to_csv('hist.csv')
+    pd.DataFrame(hist.history).to_csv('reg.hist.csv')
     # Save model
     model.save(args.output)
     # done
