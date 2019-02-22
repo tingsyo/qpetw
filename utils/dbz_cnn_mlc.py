@@ -108,7 +108,8 @@ def to_onehot(y, nclasses=5):
     L = len(y)                                          # Length of vector y
     yoh = np.zeros((L, nclasses), dtype=np.float32)     # The one-hot encoding, initialized with 0
     for i in range(L):
-        yoh[i, y[i]] = 1                           # Encode the corresponding class
+        yoh[i, 0:y[i]] = 1                              # Encode the corresponding class
+        yoh[i, y[i]] = 1                                # Encode the corresponding class
     return(yoh)
 
 # VGG model
@@ -155,9 +156,9 @@ def init_model(input_shape):
     # Initialize model
     model = Model(inputs = inputs, outputs = out)
     # Define compile parameters
-    #adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01, clipvalue=1.)
+    adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01, clipvalue=1.)
     #sgd = SGD(lr=0.1, momentum=1e-8, decay=0.01, nesterov=True, clipvalue=1.)
-    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+    model.compile(loss='binary_crossentropy', optimizer=adam, metrics=['accuracy'])
     return(model)
 
 def loadDBZ(flist):
