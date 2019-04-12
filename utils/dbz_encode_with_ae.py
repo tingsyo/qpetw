@@ -86,7 +86,7 @@ def main():
         os.makedirs(args.output)
     # Encode data
     for f in fs:
-        X = np.load(os.path.join(args.rawx,f))
+        X = np.load(os.path.join(args.rawx,f))/100.         # Scale X with 1/100 to have values 0. ~ 1.
         xenc = encoder.predict(np.expand_dims(X, axis=0))
         ofile = os.path.join(args.output, f)
         np.save(ofile, xenc)
