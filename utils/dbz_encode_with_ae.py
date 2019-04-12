@@ -66,11 +66,11 @@ def main():
     #-------------------------------
     # Find all files
     #-------------------------------
-	fs = []
-	for root, dirs, files in os.walk(args.rawx):
-		for file in files:
-			if glob.fnmatch.fnmatch(file, '*.npy'):
-				fs.append(file)
+    fs = []
+    for root, dirs, files in os.walk(args.rawx):
+        for file in files:
+            if glob.fnmatch.fnmatch(file, '*.npy'):
+                fs.append(file)
     nSample = len(fs)
     #logging.info("Training model with " + str(len(x)) + " samples.")
     #-------------------------------
@@ -78,7 +78,7 @@ def main():
     #-------------------------------
     encoder = load_model(args.encoder)
     # Debug info
-    print(aencoder.summary())
+    print(encoder.summary())
     print("Encoding data with pre-trained autoencoder on "+str(len(fs))+" files.")
     # Prepare output
     if not os.path.exists(args.output):
@@ -87,8 +87,8 @@ def main():
     # Encode data
     for f in fs:
         X = np.load(os.path.join(args.rawx,f))
-        xenc = encoder.predict(X)
-		ofile = os.path.join(args.output, f)
+        xenc = encoder.predict(np.expand_dims(X, axis=0))
+        ofile = os.path.join(args.output, f)
         np.save(ofile, xenc)
     # done
     return(0)
