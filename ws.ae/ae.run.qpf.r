@@ -30,7 +30,7 @@ for(i in 1:nstation){
   iodata <- merge(tmp, input.1316, by.x="date", by.y=0)
   # Clean up NA and move date to row.names
   print("Cleaning up data...")
-  row.names(iodata) <- iodate$date
+  row.names(iodata) <- iodata$date
   iodata <- iodata[,-1]
   iodata <- iodata[complete.cases(iodata),]
   #iodata <- iodata[1:1000,]
