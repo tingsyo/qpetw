@@ -90,14 +90,21 @@ def loadIOTab(srcx, srcy, test_split=0.0, shuffle=False):
     # Read raw input and output
     #logging.info("Reading input X from: "+ srcx)
     print("Reading input X from: "+ srcx)
-    xfiles = glob.glob(srcx+ os.path.sep +'*.npy')
+    xfiles = []
+    for root, dirs, files in os.walk(srcx): 
+        for fn in files: 
+            if fn.endswith('.npy'): 
+                 xfiles.append({'date':fn.replace('.npy',''), 'uri':os.path.join(root, fn)})
+    xfiles = pd.DataFrame(xfiles) 
     #logging.info("Reading output Y from: "+ srcy)
     print("Reading output Y from: "+ srcy)
     yraw = pd.read_csv(srcy)
+    yraw['date'] = yraw['date'].apply(str)
     # Create complete IO-data
     print("Pairing X-Y and splitting training/testing data.")
-    iotab = createIOTable(xfiles, yraw)   
-    nSample = len(iotab)
+    #iotab = createIOTable(xfiles, yraw)   
+    iotab = pd.merge(yraw, xfiles, on='date')
+    nSample = iotab.shape[0]
     # Create data split
     # nTrain = int(nSample*(1-test_split))
     # if shuffle:
