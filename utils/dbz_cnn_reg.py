@@ -8,9 +8,6 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import random as rn
-# For cross-validation
-from sklearn.model_selection import StratifiedKFold, train_test_split
-import sklearn.metrics as metrics
 # For fixing random state: block1
 #os.environ['PYTHONHASHSEED'] = '0'
 #np.random.seed(14221)
@@ -33,14 +30,14 @@ import keras.backend as K
 # For fixing random state: block2
 
 __author__ = "Ting-Shuo Yo"
-__copyright__ = "Copyright 2017~2018, DataQualia Lab Co. Ltd."
+__copyright__ = "Copyright 2019, DataQualia Lab Co. Ltd."
 __credits__ = ["Ting-Shuo Yo"]
-__license__ = "UNLICENSED"
-__version__ = "0.0.1"
+__license__ = "Apache License 2.0"
+__version__ = "0.2.1"
 __maintainer__ = "Ting-Shuo Yo"
 __email__ = "tingyo@dataqualia.com"
 __status__ = "development"
-__date__ = '2018-02-14'
+__date__ = '2019-06-02'
 
 # Parameters
 nSample = 37369                 # Total complete samples
@@ -86,7 +83,8 @@ def createIOTable(x, y, ylab='t1hr', qpf=False):
     return(cd)
 
 # Load input/output data for model
-def loadIOTab(srcx, srcy, test_split=0.0, shuffle=False):
+def loadIOTab(srcx, srcy, dropna=False):
+    import pandas as pd
     # Read raw input and output
     #logging.info("Reading input X from: "+ srcx)
     print("Reading input X from: "+ srcx)
@@ -94,26 +92,45 @@ def loadIOTab(srcx, srcy, test_split=0.0, shuffle=False):
     for root, dirs, files in os.walk(srcx): 
         for fn in files: 
             if fn.endswith('.npy'): 
-                 xfiles.append({'date':fn.replace('.npy',''), 'uri':os.path.join(root, fn)})
-    xfiles = pd.DataFrame(xfiles) 
+                 xfiles.append({'date':fn.replace('.npy',''), 'xuri':os.path.join(root, fn)})
+    xfiles = pd.DataFrame(xfiles)
+    print("... read input size: "+str(xfiles.shape))
     #logging.info("Reading output Y from: "+ srcy)
     print("Reading output Y from: "+ srcy)
-    yraw = pd.read_csv(srcy)
+    yraw = pd.read_csv(srcy, encoding='utf-8')
     yraw['date'] = yraw['date'].apply(str)
+    print("... read output size: "+str(yraw.shape))
     # Create complete IO-data
     print("Pairing X-Y and splitting training/testing data.")
-    #iotab = createIOTable(xfiles, yraw)   
-    iotab = pd.merge(yraw, xfiles, on='date')
-    nSample = iotab.shape[0]
-    # Create data split
-    # nTrain = int(nSample*(1-test_split))
-    # if shuffle:
-    #    iotab = iotab.sample(frac=1).reset_index(drop=True)
-    # Create training/testing split using sklearn.model_selection.train_test_split
-    iotrain, iotest = train_test_split(iotab, test_size=test_split, shuffle=shuffle)
+    iotab = pd.merge(yraw, xfiles, on='date', sort=True)
+    print("... data size after merging: "+str(iotab.shape))
+    # Dro NA if specified
+    if dropna:
+        print('Dropping records with NA')
+        iotab = iotab.dropna()
+        print("... data size after dropping-NAs: "+str(iotab.shape))
     # Done
-    return({'train':iotrain, 'test':iotest})
+    return(iotab)
 
+# Create cross validation splits
+def create_CV_splits(iotable, k=5, ysegs=None, ylab='t1hr', shuffle=False):
+    from sklearn.model_selection import StratifiedKFold, KFold
+    # Index of each fold
+    cvidx_train = []
+    cvidx_test = []
+    # If segmentation of y is not specified, use simple KFold
+    if ysegs is None:
+        kf = KFold(n_splits=k, random_state=None, shuffle=shuffle)
+        for idx_train, idx_test in kf.split(iotable['xuri']):
+            cvidx_train.append(idx_train)
+            cvidx_test.append(idx_test)
+    else:
+        kf = StratifiedKFold(n_splits=k, random_state=None, shuffle=shuffle)
+        for idx_train, idx_test in kf.split(iotable['xuri'], np.digitize(iotable[ylab], ysegs)):
+            cvidx_train.append(idx_train)
+            cvidx_test.append(idx_test)
+    return((cvidx_train, cvidx_test))
+    
 # VGG model
 def init_model(input_shape):
     """
@@ -202,16 +219,31 @@ def data_generator_reg(iotab, batch_size):
             batch_end += batch_size
     # End of generator
 
-def report_evaluation(y_true, y_pred):
-    print('Mean of y_true: ' + str(y_true.mean()))
-    print('Variance of y_true: ' + str(y_true.var()))
-    print('Mean of y_pred: ' + str(y_pred.mean()))
-    print('Variance of y_pred: ' + str(y_pred.var()))
-    rmse = np.sqrt(metrics.mean_squared_error(y_true,y_pred))
-    corr = np.corrcoef(y_true,y_pred)[0,1]
-    print('RMSE: ' + str(rmse))
-    print('Corr: ' + str(corr))
-    return({'rmse':rmse,'corr':corr})
+# Function to give report
+def report_evaluation(y_true, y_pred, verbose=0):
+    import sklearn.metrics as metrics
+    # Calculate measures
+    results = {}
+    results['y_true_mean'] = y_true.mean()
+    results['y_true_var'] = y_true.var()
+    results['y_pred_mean'] = y_pred.mean()
+    results['y_pred_var'] = y_pred.var()
+    results['rmse'] = np.sqrt(metrics.mean_squared_error(y_true,y_pred))
+    if y_pred.var()<=10e-8:
+        results['corr'] = 0
+    else:
+        results['corr'] = np.corrcoef(y_true,y_pred)[0,1]
+    # Print results if verbose > 0
+    if verbose>0:
+        if verbose>1:
+            print('Mean of y_true: ' + str(results['y_true_mean']))
+            print('Variance of y_true: ' + str(results['y_true_var']))
+            print('Mean of y_pred: ' + str(results['y_pred_mean']))
+            print('Variance of y_pred: ' + str(results['y_pred_var']))
+        print('RMSE: ' + str(results['rmse']))
+        print('Corr: ' + str(results['corr']))
+    # Return results
+    return(results)
 
     
 #-----------------------------------------------------------------------
@@ -221,8 +253,7 @@ def main():
     parser.add_argument('--rawx', '-x', help='the directory containing preprocessed DBZ data.')
     parser.add_argument('--rawy', '-y', help='the file containing the precipitation data.')
     parser.add_argument('--output', '-o', help='the file to store training history.')
-    parser.add_argument('--split', '-s', default=0.2, type=np.float32, help='testing split ratio.')
-    parser.add_argument('--batch_size', '-b', default=128, type=int, help='batch size.')
+    parser.add_argument('--batch_size', '-b', default=16, type=int, help='number of epochs.')
     parser.add_argument('--epochs', '-e', default=1, type=int, help='number of epochs.')
     parser.add_argument('--log', '-l', default='reg.log', help='the log file.')
     args = parser.parse_args()
@@ -231,41 +262,50 @@ def main():
     #-------------------------------
     # IO data generation
     #-------------------------------
-    iotab = loadIOTab(args.rawx, args.rawy, test_split=args.split, shuffle=True)
+    iotab = loadIOTab(args.rawx, args.rawy, dropna=True)
+    print(iotab.head())
     #-------------------------------
-    # Test dnn
+    # Create Cross Validation splits
     #-------------------------------
-    # Train
-    #logging.info("Training model with " + str(len(x)) + " samples.")
-    model = init_model((nLayer, nY, nX))
-    # Debug info
-    print(model.summary())
-    print("Training data samples: "+str(iotab['train'].shape[0]))
-    steps_train = int(len(iotab['train'])/args.batch_size) + 1
-    print("Training data steps: " + str(steps_train))
-    print(iotab['train'][:5])
-    print("Testing data samples: "+ str(iotab['test'].shape[0]))
-    steps_test = int(len(iotab['test'])/args.batch_size) + 1
-    print("Testing data steps: " + str(steps_test))
-    print(iotab['test'][:5])
-    # Fitting model
-    hist = model.fit_generator(data_generator_reg(iotab['train'], args.batch_size), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
-    # Prediction
-    y_pred = model.predict_generator(data_generator_reg(iotab['test'], args.batch_size), steps=steps_test, verbose=0)
-    yp = log_to_y(y_pred)
-    print('Mean of yp_log: ' + str(y_pred.mean()))
-    print('Variance of yp_log: ' + str(y_pred.var()))
-    print('Mean of yp: ' + str(yp.mean()))
-    print('Variance of yp: ' + str(yp.var()))
-    # Prepare output
-    yt = iotab['test']['y']
-    y_com = pd.DataFrame({'y': yt, 'y_cat':iotab['test']['ycat'],'y_log': y_pred.flatten(), 'y_pred':yp})
-    results = report_evaluation(yt, yp)
+    idx_trains, idx_tests = create_CV_splits(iotab, k=3, ysegs=[0.5, 5, 10], ylab='t1hr', shuffle=False)
+    #-------------------------------
+    # Run through CV
+    #-------------------------------
+    ys = []
+    hists = []
+    cv_report = []
+    iotab_log = pd.DataFrame({'y':y_to_log(iotab['t1hr']), 'xuri':iotab['xuri']})
+    for i in range(len(idx_trains)):
+        # Train
+        #logging.info("Training model with " + str(len(x)) + " samples.")
+        model = init_model((nLayer, nY, nX))
+        # Debug info
+        #print(model.summary())
+        print("Training data samples: "+str(len(idx_trains[i])))
+        steps_train = np.ceil(len(idx_trains[i])/args.batch_size)
+        print("Training data steps: " + str(steps_train))
+        print("Testing data samples: "+ str(len(idx_tests[i])))
+        steps_test = np.ceil(len(idx_tests[i])/args.batch_size)
+        print("Testing data steps: " + str(steps_test))
+        # Fitting model
+        hist = model.fit_generator(data_generator_reg(iotab_log.iloc[idx_trains[i],:], args.batch_size), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
+        # Prediction
+        y_pred = model.predict_generator(data_generator_reg(iotab_log.iloc[idx_tests[i],:], args.batch_size), steps=steps_test, verbose=0)
+        yp = log_to_y(y_pred)
+        # Debug info
+        print('Mean of yp_log: ' + str(y_pred.mean()))
+        print('Variance of yp_log: ' + str(y_pred.var()))
+        print('Mean of yp: ' + str(yp.mean()))
+        print('Variance of yp: ' + str(yp.var()))
+        # Prepare output
+        yt = np.array(iotab['t1hr'])[idx_tests[i]]
+        ys.append(pd.DataFrame({'y': yt, 'y_pred_log': y_pred.flatten(), 'y_pred':yp}))
+        hists.append(hist.history) 
+        cv_report.append(report_evaluation(yt, yp))
     # Output results
-    y_com.to_csv('reg.ys.csv')
-    pd.DataFrame(hist.history).to_csv('reg.hist.csv')
-    # Save model
-    model.save(args.output)
+    pd.concat(ys).to_csv(args.output+'_reg_ys.csv')
+    pd.DataFrame(hists).to_csv(args.output+'_reg_hist.csv')
+    pd.DataFrame(cv_report).to_csv(args.output+'_reg_report.csv')
     # done
     return(0)
     
