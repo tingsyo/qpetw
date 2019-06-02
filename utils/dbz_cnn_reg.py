@@ -142,40 +142,40 @@ def init_model(input_shape):
     # Input layer
     inputs = Input(shape=input_shape)
     # blovk1: CONV -> CONV -> MaxPooling
-    x = Conv2D(filters=32, kernel_size=(3,3), activation='relu', padding='same', name='block1_conv1', data_format='channels_first', kernel_initializer=initializers.glorot_normal())(inputs)
+    x = Conv2D(filters=16, kernel_size=(3,3), activation='relu', padding='same', name='block1_conv1', data_format='channels_first', kernel_initializer=initializers.glorot_normal())(inputs)
     #x = Conv2D(32, (3,3), activation='relu', name='block1_conv2', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(32, (3,3), activation='relu', name='block1_conv3', data_format='channels_first',kernel_initializer=initializers.glorot_normal())(x)
-    x = MaxPooling2D((5,3), name='block1_pool', data_format='channels_first')(x)
+    x = MaxPooling2D((2,2), name='block1_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # block2: CONV -> CONV -> MaxPooling
-    x = Conv2D(16, (3,3), activation='relu', padding='same', name='block2_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(32, (3,3), activation='relu', padding='same', name='block2_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(64, (3,3), activation='relu', name='block2_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(64, (3,3), activation='relu', name='block2_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = MaxPooling2D((1,3), name='block2_pool', data_format='channels_first')(x)
+    x = MaxPooling2D((2,2), name='block2_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # block3: CONV -> CONV -> MaxPooling
-    x = Conv2D(8, (3,3), activation='relu', padding='same', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(64, (3,3), activation='relu', padding='same', name='block3_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(128, (3,3), activation='relu', name='block3_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(128, (3,3), activation='relu', name='block3_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = MaxPooling2D((1,3), name='block3_pool', data_format='channels_first')(x)
+    x = MaxPooling2D((2,2), name='block3_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # block4: CONV -> CONV -> MaxPooling
-    x = Conv2D(4, (3,3), activation='relu', padding='same', name='block4_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
+    x = Conv2D(128, (3,3), activation='relu', padding='same', name='block4_conv1',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(256, (3,3), activation='relu', name='block4_conv2',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
     #x = Conv2D(256, (3,3), activation='relu', name='block4_conv3',data_format='channels_first', kernel_initializer=initializers.glorot_normal())(x)
-    x = MaxPooling2D((5,3), name='block4_pool', data_format='channels_first')(x)
+    x = MaxPooling2D((2,2), name='block4_pool', data_format='channels_first')(x)
     x = Dropout(0.5)(x)
     # Output block: Flatten -> Dense -> Dense -> softmax output
     x = Flatten()(x)
-    x = Dense(16, activation='relu', name='fc1')(x)
-    x = Dropout(0.8)(x)
-    x = Dense(8, activation='relu', name='fc2')(x)
+    x = Dense(128, activation='relu', name='fc1')(x)
+    x = Dropout(0.7)(x)
+    x = Dense(64, activation='relu', name='fc2')(x)
     # Output layer
     out = Dense(1, activation='linear', name='main_output')(x)
     # Initialize model
     model = Model(inputs = inputs, outputs = out)
     # Define compile parameters
-    adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.01, clipvalue=1.)
+    adam = Adam(lr=0.1, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.001, clipvalue=1.)
     #sgd = SGD(lr=0.01, momentum=1e-8, decay=0.001, nesterov=True)#, clipvalue=1.)
     model.compile(loss='mse', optimizer=adam, metrics=['mae','cosine_proximity'])
     return(model)
@@ -200,10 +200,10 @@ def log_to_y(y):
     yori[yori<0.5] = 0.                          # Set the minimal values to 0.
     return(yori)
 
-def data_generator_reg(iotab, batch_size):
+def data_generator_reg(iotab, batch_size, ylab='t1hr'):
     ''' Data generator for batched processing. '''
     nSample = len(iotab)
-    y = np.array(iotab['y'], dtype=np.float32).reshape(nSample, 1)
+    y = np.array(iotab[ylab], dtype=np.float32).reshape(nSample, 1)
     #print(y[:5])
     # This line is just to make the generator infinite, keras needs that    
     while True:
@@ -255,6 +255,7 @@ def main():
     parser.add_argument('--output', '-o', help='the file to store training history.')
     parser.add_argument('--batch_size', '-b', default=16, type=int, help='number of epochs.')
     parser.add_argument('--epochs', '-e', default=1, type=int, help='number of epochs.')
+    parser.add_argument('--kfold', '-k', default=2, type=int, help='number of folds for cross validation.')
     parser.add_argument('--log', '-l', default='reg.log', help='the log file.')
     args = parser.parse_args()
     # Set up logging
@@ -263,24 +264,24 @@ def main():
     # IO data generation
     #-------------------------------
     iotab = loadIOTab(args.rawx, args.rawy, dropna=True)
-    print(iotab.head())
+    #print(iotab.head())
     #-------------------------------
     # Create Cross Validation splits
     #-------------------------------
-    idx_trains, idx_tests = create_CV_splits(iotab, k=3, ysegs=[0.5, 5, 10], ylab='t1hr', shuffle=False)
+    idx_trains, idx_tests = create_CV_splits(iotab, k=args.kfold, ysegs=[0.5, 5, 10], ylab='t1hr', shuffle=False)
     #-------------------------------
     # Run through CV
     #-------------------------------
     ys = []
     hists = []
     cv_report = []
-    iotab_log = pd.DataFrame({'y':y_to_log(iotab['t1hr']), 'xuri':iotab['xuri']})
     for i in range(len(idx_trains)):
         # Train
         #logging.info("Training model with " + str(len(x)) + " samples.")
         model = init_model((nLayer, nY, nX))
         # Debug info
-        #print(model.summary())
+        if i==0:
+            print(model.summary())
         print("Training data samples: "+str(len(idx_trains[i])))
         steps_train = np.ceil(len(idx_trains[i])/args.batch_size)
         print("Training data steps: " + str(steps_train))
@@ -288,20 +289,22 @@ def main():
         steps_test = np.ceil(len(idx_tests[i])/args.batch_size)
         print("Testing data steps: " + str(steps_test))
         # Fitting model
-        hist = model.fit_generator(data_generator_reg(iotab_log.iloc[idx_trains[i],:], args.batch_size), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
+        hist = model.fit_generator(data_generator_reg(iotab.iloc[idx_trains[i],:], args.batch_size, ylab='t1hr'), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
         # Prediction
-        y_pred = model.predict_generator(data_generator_reg(iotab_log.iloc[idx_tests[i],:], args.batch_size), steps=steps_test, verbose=0)
+        y_pred = model.predict_generator(data_generator_reg(iotab.iloc[idx_tests[i],:], args.batch_size, ylab='t1hr'), steps=steps_test, verbose=0)
         yp = log_to_y(y_pred)
-        # Debug info
-        print('Mean of yp_log: ' + str(y_pred.mean()))
-        print('Variance of yp_log: ' + str(y_pred.var()))
-        print('Mean of yp: ' + str(yp.mean()))
-        print('Variance of yp: ' + str(yp.var()))
         # Prepare output
         yt = np.array(iotab['t1hr'])[idx_tests[i]]
         ys.append(pd.DataFrame({'y': yt, 'y_pred_log': y_pred.flatten(), 'y_pred':yp}))
         hists.append(hist.history) 
         cv_report.append(report_evaluation(yt, yp))
+        # Debug info
+        print('Histogram of y_true: ')
+        print(np.histogram(yt, bins=[0, 0.5, 10, 30, 40, 1000]))
+        print(np.histogram(y_to_log(yt)))
+        print('Histogram of y_pred: ')
+        print(np.histogram(yp, bins=[0, 0.5, 10, 30, 40, 1000]))
+        print(np.histogram(y_pred))
     # Output results
     pd.concat(ys).to_csv(args.output+'_reg_ys.csv')
     pd.DataFrame(hists).to_csv(args.output+'_reg_hist.csv')
