@@ -98,3 +98,19 @@ create.input.qpe <- function(y, x, filter.year=NULL){
   #
   return(cbind(y,newx))
 }
+
+
+# Calculate accumulative precipitation in the past k hours of given station
+create.accts <- function(y, k=6){
+  # Loop through k
+  output <- data.frame("y"=y$t1hr)
+  row.names(output) <- y$date
+  for(i in 1:k){
+    output <- cbind(output, c(NA, output[1:(nrow(output)-1), i]))
+  }
+  for(i in 2:k){
+    output[,(i+1)] <- output[,i] + output[,(i+1)]
+  }
+  names(output) <- c("y", paste0("acc",1:k))
+  return(output)
+}
