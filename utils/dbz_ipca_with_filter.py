@@ -168,7 +168,7 @@ def main():
         print('Read filter file: '+args.filter)
         flt = pd.read_csv(args.filter)
         print('Filter size: '+str(flt.shape[0]))
-        fidx = finfo['timestamp'].isin(list(flt.iloc[:,0]))
+        fidx = finfo['timestamp'].isin(list(flt.iloc[:,0].apply(str)))
         finfo = finfo.loc[fidx,:].reset_index(drop=True)
         print('Data size after filter: '+str(finfo.shape[0]))
     # Fit Incremental PCA
