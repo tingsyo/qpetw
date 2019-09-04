@@ -161,6 +161,7 @@ def main():
     # Output fitted IPCA model
     with open(args.output+".pca.joblib", 'wb') as outfile:
         joblib.dump(ipca, outfile)
+    # Transformed the training data if specified
     if args.transform:
         logging.info("Transform data with PCs...")
         # Transform data
