@@ -92,13 +92,22 @@ def create_timestamps(start_date, end_date, nhr=1):
 ''' Perform Incremental PCA '''
 def fit_ipca_partial(finfo, nc=20, bs=100):
     ipca = IncrementalPCA(n_components=nc, batch_size=bs)
-    # Loop through finfo
-    for i in range(0, len(finfo), bs):
+    # Check whether the last batch size is smaller than n_components
+    flag_merge_last_batch = False
+    if np.mod(finfo.shape[0], bs)<nc:
+        flag_merge_last_batch = True
+    # Setup batch counter
+    n_batch = np.floor(finfo.shape[0]/bs)
+    if not flag_merge_last_batch:
+        n_batch = n_batch + 1
+    # Loop through n_batch
+    for i in range(0, finfo.shape[0], bs):
         # Read batch data
         dbz = []
         i2 = i + bs
-        if i2>len(finfo):
-            i2 = len(finfo)
+        # Check before the last batch
+        if i2>finfo.shape[0]:
+            i2 = finfo.shape[0]
         for j in range(i, i2):
             f = finfo.iloc[j,:]
             logging.debug('Reading data from: ' + f['furi'])
@@ -117,7 +126,7 @@ def fit_ipca_partial(finfo, nc=20, bs=100):
 def transform_dbz(ipca, finfo):
     dbz = []
     # Loop through finfo
-    for i in range(0,len(finfo)):
+    for i in range(0,finfo.shape[0]):
         f = finfo.iloc[i,:]
         logging.debug('Reading data from: ' + f['furi'])
         tmp = np.load(f['furi']).flatten()
@@ -189,10 +198,10 @@ def main():
     # Transform data
     dbz_ipca = transform_dbz(ipca, finfo)
     # Append date and projections
-    proj_header = ['date','hhmm'] + ['pc'+str(x+1) for x in range(args.n_components)]
+    proj_header = ['timestamp'] + ['pc'+str(x+1) for x in range(args.n_components)]
     newrecs = []
-    for i in range(len(finfo)):
-        newrecs.append(finfo[i][1:3] + list(dbz_ipca[i]))
+    for i in range(finfo.shape[0]):
+        newrecs.append([finfo['timestamp'].iloc[i]] + list(dbz_ipca[i]))
     # Output
     writeToCsv(newrecs, args.output, header=proj_header)
     # done
