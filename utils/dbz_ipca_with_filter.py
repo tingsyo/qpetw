@@ -14,6 +14,7 @@ import os, csv, logging, argparse, pickle, h5py
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA, IncrementalPCA
+import joblib
 
 ''' Input processing '''
 # Scan QPESUMS data in *.npy: 6*275*162 
@@ -39,86 +40,44 @@ def loadDBZ(flist):
     xdata = []
     for f in flist:
         tmp = np.load(f)
-        xdata.append(tmp)
+        # Append new record
+        if tmp is not None:            # Append the flattened data array if it is not None
+            xdata.append(tmp.flatten())
     x = np.array(xdata, dtype=np.float32)
     return(x)
-    
-
-''' Time-stamp processing '''
-# Convert HH=24 to HH=00
-def correct_qpe_timestamp(ts):
-    '''Check the time-stamp string in the form of YYYY-mm-dd-HH:
-         - if HH = 24, increment the dd by one and change HH to 00
-    '''
-    import datetime
-    if ts[8:] == '24':
-        oldt = datetime.datetime.strptime(ts[:8], '%Y%m%d')
-        newt = oldt + datetime.timedelta(days=1)
-        newt_str = newt.strftime('%Y%m%d')+'00'
-        return(newt_str)
-    else:
-        return(ts)
-    
-# Convert HH=00 to HH=24
-def convert_to_qpe_timestamp(ts):
-    '''Check the time-stamp string in the form of YYYY-mm-dd-HH:
-         - if HH = 00, decrease the dd by one and change HH to 24
-    '''
-    import datetime
-    if ts[8:] == '00':
-        oldt = datetime.datetime.strptime(ts[:8], '%Y%m%d')
-        newt = oldt - datetime.timedelta(days=1)
-        newt_str = newt.strftime('%Y%m%d')+'24'
-        return(newt_str)
-    else:
-        return(ts)
-
- # Create a list of YYYYMMDDHH with 1hour interval during the start_date and end_date.
-def create_timestamps(start_date, end_date, nhr=1):
-    '''Creating a list of YYYYMMDDHH with 1hour interval during the start_date and end_date.'''
-    import datetime
-    # Convert YYYYMMDD strings to datetime object
-    starttime = datetime.datetime.strptime(start_date, '%Y%m%d%H')
-    endtime = datetime.datetime.strptime(end_date, '%Y%m%d%H')
-    timestep = datetime.timedelta(hours=nhr)
-    # Create YYYYMMDDHH list 
-    tslist = []
-    while starttime <= endtime:
-        tslist.append(convert_to_qpe_timestamp(starttime.strftime('%Y%m%d%H')))
-        starttime += timestep
-    # Done
-    return(tslist)
 
 ''' Perform Incremental PCA '''
 def fit_ipca_partial(finfo, nc=20, bs=100):
+    nrec = finfo.shape[0]
+    # Initialize the IncrementalPCA object
     ipca = IncrementalPCA(n_components=nc, batch_size=bs)
     # Check whether the last batch size is smaller than n_components
     flag_merge_last_batch = False
-    if np.mod(finfo.shape[0], bs)<nc:
+    if np.mod(nrec, bs)<nc:
+        logging.warning('The last batch is smaller than n_component, merge the last two batches.')
         flag_merge_last_batch = True
     # Setup batch counter
-    n_batch = np.floor(finfo.shape[0]/bs)
+    n_batch = int(np.floor(nrec/bs))
     if not flag_merge_last_batch:
         n_batch = n_batch + 1
-    # Loop through n_batch
-    for i in range(0, finfo.shape[0], bs):
+    logging.debug('Number of batches: '+str(n_batch))
+    # Loop through the first (n_batch-1) batch
+    for i in range(n_batch-1):
         # Read batch data
-        dbz = []
-        i2 = i + bs
-        # Check before the last batch
-        if i2>finfo.shape[0]:
-            i2 = finfo.shape[0]
-        for j in range(i, i2):
-            f = finfo.iloc[j,:]
-            logging.debug('Reading data from: ' + f['furi'])
-            tmp = np.load(f['furi'])
-            # Append new record
-            if tmp is not None:            # Append the flattened data array if it is not None
-                dbz.append(tmp.flatten())
+        i1 = i * bs
+        i2 = i1 + bs
+        # Load batch data
+        dbz = loadDBZ(finfo['furi'].iloc[i1:i2])
+        logging.debug('Batch dimension: '+ str(dbz.shape))
         # Partial fit with batch data
-        dbz = np.array(dbz)
-        print(dbz.shape)                   # debug information
         ipca.partial_fit(dbz)
+    # In case there is only one batch
+    if n_batch==1:
+        i2 = 0
+    # Fit the last batch
+    dbz = loadDBZ(finfo['furi'].iloc[i2:nrec])
+    logging.debug('Final batch dimension: '+ str(dbz.shape))
+    ipca.partial_fit(dbz)
     # done
     return(ipca)
 
@@ -128,20 +87,19 @@ def transform_dbz(ipca, finfo):
     # Loop through finfo
     for i in range(0,finfo.shape[0]):
         f = finfo.iloc[i,:]
-        logging.debug('Reading data from: ' + f['furi'])
+        #logging.debug('Reading data from: ' + f['furi'])
         tmp = np.load(f['furi']).flatten()
         # Append new record
         if tmp is None:     # Copy the previous record if new record is empty
-            print('File empty: '+f['furi'])
+            logging.warning('File empty: '+f['furi'])
             dbz.append(np.zeros(ipca.n_components))
         else:
             tmp = tmp.reshape(1,len(tmp))
             tmp = ipca.transform(tmp).flatten()
             dbz.append(tmp)
     # Save changes of the storage file
-    print(np.array(dbz).shape)
+    logging.debug('Data dimension after projection: ' + str(np.array(dbz).shape))
     return(dbz)
-
 
 def writeToCsv(output, fname, header=None):
     # Overwrite the output file:
@@ -160,50 +118,60 @@ def main():
     # Configure Argument Parser
     parser = argparse.ArgumentParser(description='Retrieve DBZ data for further processing.')
     parser.add_argument('--input', '-i', help='the directory containing all the DBZ data.')
-    parser.add_argument('--output', '-o', default='output.csv', help='the output file.')
+    parser.add_argument('--output', '-o', default='output', help='the output file.')
     parser.add_argument('--filter', '-f', default=None, help='the filter file with time-stamps.')
     parser.add_argument('--n_components', '-n', default=20, type=int, help='number of component to output.')
+    parser.add_argument('--transform', '-t', default=False, help='transform data with PCA.')
     parser.add_argument('--batch_size', '-b', default=100, type=int, help='size of each data batch.')
     parser.add_argument('--randomseed', '-r', help="integer as the random seed", default="1234543")
-    parser.add_argument('--log', '-l', default='tmp.log', help='the log file.')
+    parser.add_argument('--log', '-l', default=None, help='the log file.')
     args = parser.parse_args()
     # Set up logging
-    logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
+    if not args.log is None:
+        logging.basicConfig(level=logging.DEBUG, filename=args.log, filemode='w')
+    else:
+        logging.basicConfig(level=logging.DEBUG)
     # Scan files for reading
     finfo = search_dbz(args.input)
-    print('Total data size: '+str(finfo.shape[0]))
+    logging.debug('Total data size: '+str(finfo.shape[0]))
     # Apply filter if specified
     if not args.filter is None:
-        print('Read filter file: '+args.filter)
+        logging.debug('Read filter file: '+args.filter)
         flt = pd.read_csv(args.filter)
-        print('Filter size: '+str(flt.shape[0]))
+        logging.debug('Filter size: '+str(flt.shape[0]))
         fidx = finfo['timestamp'].isin(list(flt.iloc[:,0].apply(str)))
         finfo = finfo.loc[fidx,:].reset_index(drop=True)
-        print('Data size after filter: '+str(finfo.shape[0]))
+        logging.debug('Data size after filter: '+str(finfo.shape[0]))
+    # Check data dimension before proceed
+    if finfo.shape[0] < args.n_components:
+        logging.error('Number of data records is smaller than n_component, abort!')
+        sys.exit('Number of data records is smaller than n_component, abort!')
     # Fit Incremental PCA
-    logging.info("Performing IncrementalPCA with "+ str(args.n_components)+" components and batch size of" + str(args.batch_size))
+    logging.info("Performing IncrementalPCA of "+ str(args.n_components)+" components on data size of " + str(finfo.shape[0]) + " with batch size of " + str(args.batch_size) + "...")
     ipca = fit_ipca_partial(finfo, nc=args.n_components, bs=args.batch_size)
+    # Summarize results
     ev = ipca.explained_variance_
     evr = ipca.explained_variance_ratio_
     com = np.transpose(ipca.components_)
     logging.info("Explained variance ratio: "+ str(evr))
     # Output components
-    com_header = ['pc'+str(x+1) for x in range(args.n_components)]
-    writeToCsv(com, args.output.replace('.csv','.components.csv'), header=com_header)
-    pd.DataFrame({'ev':ev, 'evr':evr}).to_csv(args.output.replace('.csv','.exp_var.csv'))
+    #com_header = ['pc'+str(x+1) for x in range(args.n_components)]
+    #writeToCsv(com, args.output+'.components.csv', header=com_header)
+    pd.DataFrame({'pc':['pc'+str(i+1) for i in range(args.n_components)],'ev':ev, 'evr':evr}).to_csv(args.output+'.exp_var.csv', index=False)
     # Output fitted IPCA model
-    with open(args.output.replace(".csv",".pca.mod"), 'wb') as outfile:
-        pickle.dump(ipca, outfile)
-
-    # Transform data
-    dbz_ipca = transform_dbz(ipca, finfo)
-    # Append date and projections
-    proj_header = ['timestamp'] + ['pc'+str(x+1) for x in range(args.n_components)]
-    newrecs = []
-    for i in range(finfo.shape[0]):
-        newrecs.append([finfo['timestamp'].iloc[i]] + list(dbz_ipca[i]))
-    # Output
-    writeToCsv(newrecs, args.output, header=proj_header)
+    with open(args.output+".pca.joblib", 'wb') as outfile:
+        joblib.dump(ipca, outfile)
+    if args.transform:
+        logging.info("Transform data with PCs...")
+        # Transform data
+        dbz_ipca = transform_dbz(ipca, finfo)
+        # Append date and projections
+        proj_header = ['timestamp'] + ['pc'+str(x+1) for x in range(args.n_components)]
+        newrecs = []
+        for i in range(finfo.shape[0]):
+            newrecs.append([finfo['timestamp'].iloc[i]] + list(dbz_ipca[i]))
+        # Output
+        writeToCsv(newrecs, args.output+".csv", header=proj_header)
     # done
     return(0)
     
