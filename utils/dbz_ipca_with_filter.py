@@ -35,7 +35,7 @@ def search_dbz(srcdir):
     return(results)
 
 # Read uris containing QPESUMS data in the format of 6*275*162 
-def loadDBZ(flist):
+def loadDBZ(flist, to_log=False):
     ''' Load a list a dbz files (in npy format) into one numpy array. '''
     xdata = []
     for f in flist:
@@ -44,10 +44,14 @@ def loadDBZ(flist):
         if tmp is not None:            # Append the flattened data array if it is not None
             xdata.append(tmp.flatten())
     x = np.array(xdata, dtype=np.float32)
+    # Convert to log space if specified
+    if to_log:
+        x = np.log(x+1)
+    # done
     return(x)
 
 ''' Perform Incremental PCA '''
-def fit_ipca_partial(finfo, nc=20, bs=100):
+def fit_ipca_partial(finfo, nc=20, bs=100, log_flag=False):
     nrec = finfo.shape[0]
     # Initialize the IncrementalPCA object
     ipca = IncrementalPCA(n_components=nc, batch_size=bs)
@@ -67,7 +71,7 @@ def fit_ipca_partial(finfo, nc=20, bs=100):
         i1 = i * bs
         i2 = i1 + bs
         # Load batch data
-        dbz = loadDBZ(finfo['furi'].iloc[i1:i2])
+        dbz = loadDBZ(finfo['furi'].iloc[i1:i2], to_log=log_flag)
         logging.debug('Batch dimension: '+ str(dbz.shape))
         # Partial fit with batch data
         ipca.partial_fit(dbz)
@@ -75,7 +79,7 @@ def fit_ipca_partial(finfo, nc=20, bs=100):
     if n_batch==1:
         i2 = 0
     # Fit the last batch
-    dbz = loadDBZ(finfo['furi'].iloc[i2:nrec])
+    dbz = loadDBZ(finfo['furi'].iloc[i2:nrec], to_log=log_flag)
     logging.debug('Final batch dimension: '+ str(dbz.shape))
     ipca.partial_fit(dbz)
     # done
@@ -123,12 +127,13 @@ def main():
     parser.add_argument('--n_components', '-n', default=20, type=int, help='number of component to output.')
     parser.add_argument('--transform', '-t', default=False, help='transform data with PCA.')
     parser.add_argument('--batch_size', '-b', default=100, type=int, help='size of each data batch.')
+    parser.add_argument('--log_flag', '-g', default=False, help="convert to log-scale")
     parser.add_argument('--randomseed', '-r', help="integer as the random seed", default="1234543")
-    parser.add_argument('--log', '-l', default=None, help='the log file.')
+    parser.add_argument('--logfile', '-l', default=None, help='the log file.')
     args = parser.parse_args()
     # Set up logging
-    if not args.log is None:
-        logging.basicConfig(level=logging.DEBUG, filename=args.log, filemode='w')
+    if not args.logfile is None:
+        logging.basicConfig(level=logging.DEBUG, filename=args.logfile, filemode='w')
     else:
         logging.basicConfig(level=logging.DEBUG)
     # Scan files for reading
@@ -148,7 +153,7 @@ def main():
         sys.exit('Number of data records is smaller than n_component, abort!')
     # Fit Incremental PCA
     logging.info("Performing IncrementalPCA of "+ str(args.n_components)+" components on data size of " + str(finfo.shape[0]) + " with batch size of " + str(args.batch_size) + "...")
-    ipca = fit_ipca_partial(finfo, nc=args.n_components, bs=args.batch_size)
+    ipca = fit_ipca_partial(finfo, nc=args.n_components, bs=args.batch_size, log_flag=args.log_flag)
     # Summarize results
     ev = ipca.explained_variance_
     evr = ipca.explained_variance_ratio_
