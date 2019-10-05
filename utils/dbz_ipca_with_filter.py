@@ -86,7 +86,7 @@ def fit_ipca_partial(finfo, nc=20, bs=100, log_flag=False):
     return(ipca)
 
 ''' Project data into PCs '''
-def transform_dbz(ipca, finfo):
+def transform_dbz(ipca, finfo, to_log):
     dbz = []
     # Loop through finfo
     for i in range(0,finfo.shape[0]):
@@ -98,6 +98,9 @@ def transform_dbz(ipca, finfo):
             logging.warning('File empty: '+f['furi'])
             dbz.append(np.zeros(ipca.n_components))
         else:
+            # Convert to log space if specified
+            if to_log:
+                tmp = np.log(tmp+1)
             tmp = tmp.reshape(1,len(tmp))
             tmp = ipca.transform(tmp).flatten()
             dbz.append(tmp)
@@ -125,9 +128,9 @@ def main():
     parser.add_argument('--output', '-o', default='output', help='the output file.')
     parser.add_argument('--filter', '-f', default=None, help='the filter file with time-stamps.')
     parser.add_argument('--n_components', '-n', default=20, type=int, help='number of component to output.')
-    parser.add_argument('--transform', '-t', default=False, help='transform data with PCA.')
     parser.add_argument('--batch_size', '-b', default=100, type=int, help='size of each data batch.')
-    parser.add_argument('--log_flag', '-g', default=True, help="convert to log-scale")
+    parser.add_argument('--transform', '-t', default=0, type=int, choices=range(0, 2), help='transform data with PCA.')
+    parser.add_argument('--log_flag', '-g', default=1, type=int, choices=range(0, 2), help="convert to log-scale")
     parser.add_argument('--randomseed', '-r', help="integer as the random seed", default="1234543")
     parser.add_argument('--logfile', '-l', default=None, help='the log file.')
     args = parser.parse_args()
@@ -153,7 +156,7 @@ def main():
         sys.exit('Number of data records is smaller than n_component, abort!')
     # Fit Incremental PCA
     logging.info("Performing IncrementalPCA of "+ str(args.n_components)+" components on data size of " + str(finfo.shape[0]) + " with batch size of " + str(args.batch_size) + "...")
-    ipca = fit_ipca_partial(finfo, nc=args.n_components, bs=args.batch_size, log_flag=args.log_flag)
+    ipca = fit_ipca_partial(finfo, nc=args.n_components, bs=args.batch_size, log_flag=(args.log_flag==1))
     # Summarize results
     ev = ipca.explained_variance_
     evr = ipca.explained_variance_ratio_
@@ -167,10 +170,10 @@ def main():
     with open(args.output+".pca.joblib", 'wb') as outfile:
         joblib.dump(ipca, outfile)
     # Transformed the training data if specified
-    if args.transform:
+    if args.transform==1:
         logging.info("Transform data with PCs...")
         # Transform data
-        dbz_ipca = transform_dbz(ipca, finfo)
+        dbz_ipca = transform_dbz(ipca, finfo, to_log=True)
         # Append date and projections
         proj_header = ['timestamp'] + ['pc'+str(x+1) for x in range(args.n_components)]
         newrecs = []

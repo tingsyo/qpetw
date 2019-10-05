@@ -45,7 +45,7 @@ def loadDBZ(flist):
     return(x)
 
 ''' Project data into PCs '''
-def transform_dbz(ipca, finfo):
+def transform_dbz(ipca, finfo, to_flag):
     dbz = []
     # Loop through finfo
     for i in range(0,finfo.shape[0]):
@@ -57,6 +57,9 @@ def transform_dbz(ipca, finfo):
             logging.warning('File empty: '+f['furi'])
             dbz.append(np.zeros(ipca.n_components))
         else:
+            # Convert to log space if specified
+            if to_log:
+                tmp = np.log(tmp+1)
             tmp = tmp.reshape(1,len(tmp))
             tmp = ipca.transform(tmp).flatten()
             dbz.append(tmp)
@@ -84,6 +87,7 @@ def main():
     parser.add_argument('--output', '-o', default='output', help='the output file.')
     parser.add_argument('--model', '-m', help='the trained IncrementalPCA object stored with joblib.')
     parser.add_argument('--n_components', '-n', default=20, type=int, help='number of component to output.')
+    parser.add_argument('--log_flag', '-g', default=1, type=int, choices=range(0, 2), help="convert to log-scale")
     parser.add_argument('--log', '-l', default=None, help='the log file.')
     args = parser.parse_args()
     # Set up logging
@@ -106,7 +110,7 @@ def main():
     logging.info("    Number of components: "+ str(nc))
     logging.info("    Explained variance ratio: "+ str(evr))
     # Transform the data with loaded model
-    dbz_ipca = transform_dbz(ipca, finfo)
+    dbz_ipca = transform_dbz(ipca, finfo, to_log=(args.log_flag==1))
     # Append date and projections
     proj_header = ['timestamp'] + ['pc'+str(x+1) for x in range(nc)]
     newrecs = []
