@@ -127,7 +127,7 @@ def main():
     parser.add_argument('--n_components', '-n', default=20, type=int, help='number of component to output.')
     parser.add_argument('--transform', '-t', default=False, help='transform data with PCA.')
     parser.add_argument('--batch_size', '-b', default=100, type=int, help='size of each data batch.')
-    parser.add_argument('--log_flag', '-g', default=False, help="convert to log-scale")
+    parser.add_argument('--log_flag', '-g', default=True, help="convert to log-scale")
     parser.add_argument('--randomseed', '-r', help="integer as the random seed", default="1234543")
     parser.add_argument('--logfile', '-l', default=None, help='the log file.')
     args = parser.parse_args()
