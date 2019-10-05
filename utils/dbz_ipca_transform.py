@@ -45,7 +45,7 @@ def loadDBZ(flist):
     return(x)
 
 ''' Project data into PCs '''
-def transform_dbz(ipca, finfo, to_flag):
+def transform_dbz(ipca, finfo, to_log):
     dbz = []
     # Loop through finfo
     for i in range(0,finfo.shape[0]):
