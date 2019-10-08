@@ -10,7 +10,7 @@ from sklearn.decomposition import PCA, IncrementalPCA
 import joblib
 
 # Read precipitation data
-tmp = pd.read_csv('./data/t1hr.csv')
+tmp = pd.read_csv('../examples/data/t1hr.csv')
 # Calculate maximal precipitation among 45 stations
 dates = tmp['date']
 t1hr = tmp.iloc[:,1:]
