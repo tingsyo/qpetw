@@ -85,15 +85,20 @@ from sklearn.model_selection import KFold
 from sklearn.feature_selection import RFECV
 from sklearn.datasets import make_classification
 
+# Select input variables
+xvars = ['full_pc1', 'full_pc2', 'full_pc3', 'full_pc4', 'full_pc5', 'full_pc6', 'full_pc7', 'full_pc8', 'full_pc9', 'full_pc10', 'fp40_pc1', 'fp40_pc2', 'fp40_pc3', 'fp40_pc4', 'fp40_pc5', 'fp40_pc6', 'fp40_pc7', 'fp40_pc8', 'fp40_pc9', 'fp40_pc10', 'ftyw_pc1', 'ftyw_pc2', 'ftyw_pc3', 'ftyw_pc4', 'ftyw_pc5', 'ftyw_pc6', 'ftyw_pc7', 'ftyw_pc8', 'ftyw_pc9', 'ftyw_pc10', 'squared_full_pc1', 'squared_full_pc2', 'squared_full_pc3', 'squared_full_pc4', 'squared_full_pc5', 'squared_full_pc6', 'squared_full_pc7', 'squared_full_pc8', 'squared_full_pc9', 'squared_full_pc10', 'squared_fp40_pc1', 'squared_fp40_pc2', 'squared_fp40_pc3', 'squared_fp40_pc4', 'squared_fp40_pc5', 'squared_fp40_pc6', 'squared_fp40_pc7', 'squared_fp40_pc8', 'squared_fp40_pc9', 'squared_fp40_pc10', 'squared_ftyw_pc1', 'squared_ftyw_pc2', 'squared_ftyw_pc3', 'squared_ftyw_pc4', 'squared_ftyw_pc5', 'squared_ftyw_pc6', 'squared_ftyw_pc7', 'squared_ftyw_pc8', 'squared_ftyw_pc9', 'squared_ftyw_pc10']
 # Build a classification task using 3 informative features
-X = x_train.reset_index(drop=True)
+X = x_train.reset_index(drop=True).loc[:,xvars[:10]]
 y = y_train.reset_index(drop=True)
 
+print("Starting feature selection:")
+print("  input data dimesnion: "+str(X.shape))
+print("  output data dimesnion: "+str(y.shape))
 # Create the RFE object and compute a cross-validated score.
 svc = SVR(kernel="linear")
 # The "accuracy" scoring is proportional to the number of correct
 # classifications
-rfecv = RFECV(estimator=svc, step=1, cv=KFold(5), scoring='neg_mean_squared_error', verbose=2, n_jobs=10)
+rfecv = RFECV(estimator=svc, step=1, cv=KFold(5), scoring='neg_mean_squared_error', verbose=1, n_jobs=5)
 rfecv.fit(X, y)
 
 print("Optimal number of features : %d" % rfecv.n_features_)
