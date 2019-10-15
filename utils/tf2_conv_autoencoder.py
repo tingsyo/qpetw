@@ -2,24 +2,24 @@
 # -*- coding: utf-8 -*-
 """
 This script reads RADAR-dbz data in text format (275*162 values with lon/lat), and performs 
-convolutional autoencoder algorithm to reduce the data diemnsion. 
+convolutional autoencoder algorithm to reduce the data diemnsion.
+
+This version is based on TensorFlow 2.0.
 """
-import os, csv, logging, argparse, pickle, h5py, json, glob
+import os, csv, logging, argparse, h5py, json, glob
 import numpy as np
 import pandas as pd
-from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D
-from keras.models import Model
-from keras import backend as K
+import tensorflow as tf
 
 __author__ = "Ting-Shuo Yo"
 __copyright__ = "Copyright 2017~2019, DataQualia Lab Co. Ltd."
 __credits__ = ["Ting-Shuo Yo"]
 __license__ = "UNLICENSED"
-__version__ = "0.9.0"
+__version__ = "0.0.1"
 __maintainer__ = "Ting-Shuo Yo"
 __email__ = "tingyo@dataqualia.com"
 __status__ = "development"
-__date__ = '2019-01-09'
+__date__ = '2019-10-15'
 
 # Data dimension
 nLayer = 6
@@ -164,6 +164,7 @@ def main():
     ae[1].save(args.output+'_encoder.h5')
     # done
     return(0)
+    
 #==========
 # Script
 #==========
