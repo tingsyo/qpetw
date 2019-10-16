@@ -149,11 +149,12 @@ def main():
     # Test dnn
     #-------------------------------
     # Train
-    logging.info("Training model with " + str(len(x)) + " samples.")
+    logging.info("Training model with " + str(finfo.shape[0]) + " samples.")
     ae = initialize_autoencoder_qpesums((nLayer, nY, nX))
     # Debug info
+    nSample = finfo.shape[0]
     print(ae[0].summary())
-    print("Training autoencoder with data size: "+str(len(fs)))
+    print("Training autoencoder with data size: "+str(nSample)
     steps_train = np.ceil(nSample/args.batch_size)
     print("Training data steps: " + str(steps_train))
     # Fitting model
