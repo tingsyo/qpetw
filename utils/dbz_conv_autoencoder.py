@@ -7,9 +7,10 @@ convolutional autoencoder algorithm to reduce the data diemnsion.
 import os, csv, logging, argparse, pickle, h5py, json, glob
 import numpy as np
 import pandas as pd
-from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D
-from keras.models import Model
-from keras import backend as K
+import tensorflow as tf
+from tensorflow.keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D
+from tensorflow.keras.models import Model
+#from tensorflow.keras import backend as K
 
 __author__ = "Ting-Shuo Yo"
 __copyright__ = "Copyright 2017~2019, DataQualia Lab Co. Ltd."
@@ -52,7 +53,7 @@ def loadDBZ(flist, to_log=False):
         tmp = np.load(f)
         # Append new record
         if tmp is not None:            # Append the flattened data array if it is not None
-            xdata.append(tmp.flatten())
+            xdata.append(tmp)
     x = np.array(xdata, dtype=np.float32)
     # Convert to log space if specified
     if to_log:
@@ -103,7 +104,7 @@ def initialize_autoencoder_qpesums(input_shape):
     # Define autoencoder
     autoencoder = Model(input_data, decoded)
     #autoencoder.compile(optimizer='adadelta', loss='binary_crossentropy')
-    autoencoder.compile(optimizer='adam', loss='cosine_proximity', metrics=['mse','binary_crossentropy'])
+    autoencoder.compile(optimizer='adam', loss=tf.keras.losses.MeanSquaredError(), metrics=['cosine_similarity'])
     # Encoder
     encoder = Model(input_data, encoded)
     return((autoencoder, encoder))
@@ -154,11 +155,11 @@ def main():
     # Debug info
     nSample = finfo.shape[0]
     print(ae[0].summary())
-    print("Training autoencoder with data size: "+str(nSample)
+    print("Training autoencoder with data size: "+str(nSample))
     steps_train = np.ceil(nSample/args.batch_size)
     print("Training data steps: " + str(steps_train))
     # Fitting model
-    hist = ae[0].fit_generator(data_generator_ae(fs, args.batch_size), steps_per_epoch=steps_train,epochs=args.epochs, max_queue_size=args.batch_size, use_multiprocessing=False, verbose=1)
+    hist = ae[0].fit_generator(data_generator_ae(finfo['furi'], args.batch_size), steps_per_epoch=steps_train,epochs=args.epochs, max_queue_size=args.batch_size, use_multiprocessing=False, verbose=1)
     # Prepare output
     pd.DataFrame(hist.history).to_csv(args.output+'_hist.csv')
     ae[0].save(args.output+'_ae.h5')
