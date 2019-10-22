@@ -58,7 +58,7 @@ def plot_qpesums(data, outfile=None):
     lons = np.arange(120.0, 122.0125, 0.0125)
     # Get data dimensions
     nl, ny, nx = data.shape
-    print('Data dimensions: ' + str(nl) + ' layers of ' + str(ny) + ' x ' + str(nx))
+    #print('Data dimensions: ' + str(nl) + ' layers of ' + str(ny) + ' x ' + str(nx))
     # Making plot
     m = Basemap(llcrnrlon=lon0, urcrnrlon=lon1, llcrnrlat=lat0, urcrnrlat=lat1, resolution='l')     # create basemap
     m.drawcoastlines()                              # draw coastlines on map.
@@ -102,15 +102,16 @@ def get_nccudb_cwbrad(timestamp, outfile=None):
     # Get file and catch error
     try:
         data = urllib.request.urlopen(full_url).read()
-    except HTTPError, e:
+    except urllib.error.HTTPError as e:
         if e.code == 404:
             logging.error('URL not found: '+full_url)
         else:
             logging.error('Error occurs while fetching file: '+full_url)
+        return((full_url, None))
     # Output if specified
     if outfile is not None:     # Return jpg file as bytes
         with open(outfile, 'wb') as ofile:
-            ofiloe.write(data)
+            ofile.write(data)
             data = outfile
     return((full_url, data))
 
@@ -136,8 +137,11 @@ def main():
         t = ts.timestamp.iloc[i].astype(str)
         # Load qpesums data
         logging.info('Read QPESUMS data from '+ args.input + t + '.npy')
-        qpsdata = np.load(args.input+t+'.npy')
-        plot_qpesums(qpsdata, outfile=args.output+'/'+t+'_qpesums.jpg')
+        try:
+            qpsdata = np.load(args.input+t+'.npy')
+            plot_qpesums(qpsdata, outfile=args.output+'/'+t+'_qpesums.jpg')
+        except OSError as e:
+            logging.error('File not found: '+args.input+t+'.npy')
         # Download 
         logging.info('Read CWB Radar image from NCCU database')
         get_nccudb_cwbrad(t, outfile=args.output+'/'+t+'_cwb.jpg')
