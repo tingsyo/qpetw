@@ -3,7 +3,7 @@
 """
 This script reads a list of time stamps, and create figures that illustrate the QPESUMS data
 """
-import os, csv, logging, argparse
+import os, csv, logging, argparse, time
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -99,12 +99,14 @@ def main():
     for i in range(ts.shape[0]):
         t = ts.timestamp.iloc[i].astype(str)
         # Load qpesums data
-        loggings.info('Read QPESUMS data from '+ args.input + t + '.npy')
+        logging.info('Read QPESUMS data from '+ args.input + t + '.npy')
         qpsdata = np.load(args.input+t+'.npy')
         plot_qpesums(qpsdata, outfile=args.output+'/'+t+'_qpesums.jpg')
         # Download 
-        loggings.info('Read CWB Radar image from NCCU database')
+        logging.info('Read CWB Radar image from NCCU database')
         get_nccudb_cwbrad(t, outfile=args.output+'/'+t+'_cwb.jpg')
+        # Sleep
+        time.sleep(3)
     # done
     return(0)
 
