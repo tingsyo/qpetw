@@ -18,7 +18,32 @@ __email__ = "tingyo@dataqualia.com"
 __status__ = "development"
 __date__ = '2019-01-09'
 #-----------------------------------------------------------------------
- 
+def correct_qpe_timestamp(ts):
+    '''Check the time-stamp string in the form of YYYY-mm-dd-HH:
+         - if HH = 24, increment the dd by one and change HH to 00
+    '''
+    import datetime
+    if ts[8:] == '24':
+        oldt = datetime.datetime.strptime(ts[:8], '%Y%m%d')
+        newt = oldt + datetime.timedelta(days=1)
+        newt_str = newt.strftime('%Y%m%d')+'00'
+        return(newt_str)
+    else:
+        return(ts)
+    
+def convert_to_qpe_timestamp(ts):
+    '''Check the time-stamp string in the form of YYYY-mm-dd-HH:
+         - if HH = 00, decrease the dd by one and change HH to 24
+    '''
+    import datetime
+    if ts[8:] == '00':
+        oldt = datetime.datetime.strptime(ts[:8], '%Y%m%d')
+        newt = oldt - datetime.timedelta(days=1)
+        newt_str = newt.strftime('%Y%m%d')+'24'
+        return(newt_str)
+    else:
+        return(ts) 
+
 def plot_qpesums(data, outfile=None):
     # Import library
     import matplotlib.pyplot as plt
@@ -64,6 +89,8 @@ def get_nccudb_cwbrad(timestamp, outfile=None):
     # DB parameters
     head_url = 'http://140.137.32.24/aweb/cwbrad/'
     tail_url = '00.cwbrad.2MOSSSL.jpg'
+    # Fix timestamp if necessary
+    timestamp = correct_qpe_timestamp(timestamp)
     # Parse the given time stamp
     yyyy = timestamp[0:4]
     mm = timestamp[4:6]
