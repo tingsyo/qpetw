@@ -4,6 +4,7 @@
 This script reads a list of time stamps, and create figures that illustrate the QPESUMS data
 """
 import os, csv, logging, argparse, time
+from PIL import Image
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -98,11 +99,19 @@ def get_nccudb_cwbrad(timestamp, outfile=None):
     hh = timestamp[8:10]
     # Make full url
     full_url = head_url + yyyy + '/' + mm + '/' + dd + '/' + yyyy+mm+dd+'_'+hh + tail_url
-    # Get file
-    if outfile is None:     # Return jpg file as bytes
+    # Get file and catch error
+    try:
         data = urllib.request.urlopen(full_url).read()
-    else:                   # Save file and return results
-        data = urllib.request.urlretrieve(full_url, outfile)
+    except HTTPError, e:
+        if e.code == 404:
+            logging.error('URL not found: '+full_url)
+        else:
+            logging.error('Error occurs while fetching file: '+full_url)
+    # Output if specified
+    if outfile is not None:     # Return jpg file as bytes
+        with open(outfile, 'wb') as ofile:
+            ofiloe.write(data)
+            data = outfile
     return((full_url, data))
 
 #-----------------------------------------------------------------------
