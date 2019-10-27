@@ -28,15 +28,15 @@ def create_HTML_tail():
     return(doc)
 
 def create_table(tslist, imgdir):
-	# Create table head
-	table_head = "<table>\n"
+    # Create table head
+    table_head = "<table>\n"
     # Loop through timestamp list
     table_body = ''
     for i in range(tslist.shape[0]):
     	# Parse timestamp and create uri
         t = tslist.timestamp.iloc[i].astype(str)
-        uri_qpesums = imgdir+t+'_qpesums.jpg'
-        uri_cwb = imgdir+t+'_cwb.jpg'
+        uri_qpesums = './'+imgdir+'/'+t+'_qpesums.jpg'
+        uri_cwb = './'+imgdir+'/'+t+'_cwb.jpg'
         # Create row
         row = "  <tr>\n"
         row += "    <td><img src=\'{0}\' /></td>\n".format(uri_qpesums)
