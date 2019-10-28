@@ -71,7 +71,7 @@ def loadIOTab(srcx, srcy, dropna=False):
     # Done
     return(iotab)
 
-def generate_samples(iotab, ylab='y', prec_bins=[0, 1, 5, 10, 20, 40, 500], num_epoch=100, shuffle=True):
+def generate_samples(iotab, ylab='y', prec_bins=[0, 1, 5, 10, 20, 40, 500], num_epoch=10, shuffle=True):
     '''Create weighted sampling list'''
     # Analysis the Precipitation
     prec_hist = np.histogram(iotab[ylab], bins=prec_bins)
@@ -81,7 +81,8 @@ def generate_samples(iotab, ylab='y', prec_bins=[0, 1, 5, 10, 20, 40, 500], num_
     nrep = np.round(n*p/prec_hist[0]).astype(int)   # Convert to numbers of sampling
     # Categorize precipitation by specified bins
     iotab['prec_cat'] = np.digitize(iotab[ylab], bins=prec_bins)
-    print(iotab['prec_cat'].value_counts())
+    logging.debug('Sample histogram before weighted sampling:')
+    logging.debug(iotab['prec_cat'].value_counts())
     # Repeat sampling by p
     for icat in range(1,len(prec_bins)):
         repeat_n = nrep[icat-1]
@@ -89,6 +90,8 @@ def generate_samples(iotab, ylab='y', prec_bins=[0, 1, 5, 10, 20, 40, 500], num_
         print('Append data category: '+str(icat)+' for '+ str(repeat_n) +' times with size '+str(tmp.shape))
         for j in range(int(repeat_n)):
             iotab = iotab.append(tmp, ignore_index=True)
+    logging.debug('Sample histogram after weighted sampling:')
+    logging.debug(iotab['prec_cat'].value_counts())
     # Shuffle new dataset if specified
     if shuffle:
         iotab = iotab.sample(frac=1)#.reset_index(drop=True)
@@ -221,13 +224,19 @@ def main():
     parser.add_argument('--rawx', '-x', help='the directory containing preprocessed DBZ data.')
     parser.add_argument('--rawy', '-y', help='the file containing the precipitation data.')
     parser.add_argument('--output', '-o', help='the file to store training history.')
+    parser.add_argument('--samplesize', '-s', default=3, type=int, help='Weighted sampling size (multiple the original size).')
+    parser.add_argument('--logy', '-f', default=False, type=bool, help='Use Y in log-space.')
     parser.add_argument('--batch_size', '-b', default=16, type=int, help='number of epochs.')
     parser.add_argument('--epochs', '-e', default=1, type=int, help='number of epochs.')
     parser.add_argument('--kfold', '-k', default=2, type=int, help='number of folds for cross validation.')
-    parser.add_argument('--log', '-l', default='reg.log', help='the log file.')
+    parser.add_argument('--logfile', '-l', default='reg.log', help='the log file.')
     args = parser.parse_args()
     # Set up logging
-    #logging.basicConfig(filename=args.log, filemode='w', level=logging.DEBUG)
+    # Set up logging
+    if not args.logfile is None:
+        logging.basicConfig(level=logging.DEBUG, filename=args.logfile, filemode='w')
+    else:
+        logging.basicConfig(level=logging.DEBUG)
     #-------------------------------
     # IO data generation
     #-------------------------------
@@ -237,7 +246,7 @@ def main():
     #-------------------------------
     #iotab = pd.DataFrame({'date':iotab.date, 't1hr':iotab.t1hr})
     print(iotab.head())
-    iotab = generate_samples(iotab, ylab='t1hr', prec_bins=[0, 1, 5, 10, 20, 40, 500], num_epoch=10, shuffle=False)
+    iotab = generate_samples(iotab, ylab='t1hr', prec_bins=[0, 1, 5, 10, 20, 40, 500], num_epoch=args.samplesize, shuffle=False)
     print(iotab.head())
     #-------------------------------
     # Create Cross Validation splits
@@ -263,9 +272,9 @@ def main():
         steps_test = np.ceil(len(idx_tests[i])/args.batch_size)
         print("Testing data steps: " + str(steps_test))
         # Fitting model
-        hist = model.fit_generator(data_generator_reg(iotab.iloc[idx_trains[i],:], args.batch_size, ylab='t1hr'), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
+        hist = model.fit_generator(data_generator_reg(iotab.iloc[idx_trains[i],:], args.batch_size, ylab='t1hr', logy=args.logy), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
         # Prediction
-        y_pred = model.predict_generator(data_generator_reg(iotab.iloc[idx_tests[i],:], args.batch_size, ylab='t1hr'), steps=steps_test, verbose=0)
+        y_pred = model.predict_generator(data_generator_reg(iotab.iloc[idx_tests[i],:], args.batch_size, ylab='t1hr', logy=args.logy), steps=steps_test, verbose=0)
         # Prepare output
         yt = np.array(iotab['t1hr'])[idx_tests[i]]
         ys.append(pd.DataFrame({'y': yt, 'y_pred': y_pred.flatten()}))
