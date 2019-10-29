@@ -35,6 +35,7 @@ nLayer = 6                      # 6 10-min dbz for an hour
 nY = 275                        # y-dimension of dbz data
 nX = 162                        # x-dimension of dbz data
 batchSize = 128                 # Batch size for training / testing
+prec_bins=[0, 1, 5, 10, 20, 40, 500]
 
 #-----------------------------------------------------------------------
 # Functions
@@ -109,18 +110,22 @@ def init_model_reg(input_shape):
     # Input layer
     inputs = Input(shape=input_shape)
     # blovk1: CONV -> CONV -> MaxPooling
-    x = Conv2D(filters=8, kernel_size=(3,3), activation='relu', name='block1_conv1', data_format='channels_first')(inputs)
+    x = Conv2D(filters=16, kernel_size=(3,3), activation='relu', name='block1_conv1', data_format='channels_first')(inputs)
     x = MaxPooling2D((2,2), name='block1_pool', data_format='channels_first')(x)
-    x = Dropout(0.5)(x)
+    x = Dropout(0.4)(x)
     # block2: CONV -> CONV -> MaxPooling
-    x = Conv2D(16, (3,3), activation='relu', name='block2_conv1',data_format='channels_first')(x)
+    x = Conv2D(32, (3,3), activation='relu', name='block2_conv1',data_format='channels_first')(x)
     x = MaxPooling2D((2,2), name='block2_pool', data_format='channels_first')(x)
-    x = Dropout(0.5)(x)
+    x = Dropout(0.4)(x)
+    # block3: CONV -> CONV -> MaxPooling
+    x = Conv2D(64, (3,3), activation='relu', name='block3_conv1',data_format='channels_first')(x)
+    x = MaxPooling2D((2,2), name='block3_pool', data_format='channels_first')(x)
+    x = Dropout(0.4)(x)
     # Output block: Flatten -> Dense -> Dense -> softmax output
     x = Flatten()(x)
-    x = Dense(8, activation='relu', name='fc1')(x)
+    x = Dense(32, activation='relu', name='fc1')(x)
     x = Dropout(0.5)(x)
-    x = Dense(4, activation='relu', name='fc2')(x)
+    x = Dense(16, activation='relu', name='fc2')(x)
     # Output layer
     out = Dense(1, activation='linear', name='main_output')(x)
     # Initialize model
@@ -162,11 +167,11 @@ def data_generator_reg(iotab, batch_size, ylab='y', logy=False):
         batch_end = batch_size
         while batch_start < nSample:
             limit = min(batch_end, nSample)
-            X = loadDBZ(iotab['xuri'][batch_start:limit])/100.
+            X = loadDBZ(iotab['xuri'][batch_start:limit])
             if logy:
                 Y = y_to_log(y[batch_start:limit])
             else:
-                Y = y[batch_start:limit]
+                Y = y[batch_start:limit]/100.
             #print(X.shape)
             yield (X,Y) #a tuple with two numpy arrays with batch_size samples     
             batch_start += batch_size   
@@ -224,7 +229,7 @@ def main():
     parser.add_argument('--rawx', '-x', help='the directory containing preprocessed DBZ data.')
     parser.add_argument('--rawy', '-y', help='the file containing the precipitation data.')
     parser.add_argument('--output', '-o', help='the file to store training history.')
-    parser.add_argument('--samplesize', '-s', default=3, type=int, help='Weighted sampling size (multiple the original size).')
+    parser.add_argument('--samplesize', '-s', default=2, type=int, help='Weighted sampling size (multiple the original size).')
     parser.add_argument('--logy', '-f', default=False, type=bool, help='Use Y in log-space.')
     parser.add_argument('--batch_size', '-b', default=16, type=int, help='number of epochs.')
     parser.add_argument('--epochs', '-e', default=1, type=int, help='number of epochs.')
@@ -232,11 +237,11 @@ def main():
     parser.add_argument('--logfile', '-l', default='reg.log', help='the log file.')
     args = parser.parse_args()
     # Set up logging
-    # Set up logging
     if not args.logfile is None:
         logging.basicConfig(level=logging.DEBUG, filename=args.logfile, filemode='w')
     else:
         logging.basicConfig(level=logging.DEBUG)
+    logging.debug(args)
     #-------------------------------
     # IO data generation
     #-------------------------------
@@ -244,14 +249,11 @@ def main():
     #-------------------------------
     # Create weited sampling rom IOdata
     #-------------------------------
-    #iotab = pd.DataFrame({'date':iotab.date, 't1hr':iotab.t1hr})
-    print(iotab.head())
-    iotab = generate_samples(iotab, ylab='t1hr', prec_bins=[0, 1, 5, 10, 20, 40, 500], num_epoch=args.samplesize, shuffle=False)
-    print(iotab.head())
+    iotab = generate_samples(iotab, ylab='t1hr', num_epoch=args.samplesize, shuffle=True)
     #-------------------------------
     # Create Cross Validation splits
     #-------------------------------
-    idx_trains, idx_tests = create_CV_splits(iotab, k=args.kfold, ysegs=[0.5, 5, 10], ylab='t1hr', shuffle=False)
+    idx_trains, idx_tests = create_CV_splits(iotab, k=args.kfold, ysegs=prec_bins, ylab='t1hr', shuffle=False)
     #-------------------------------
     # Run through CV
     #-------------------------------
@@ -260,17 +262,16 @@ def main():
     cv_report = []
     for i in range(len(idx_trains)):
         # Train
-        #logging.info("Training model with " + str(len(x)) + " samples.")
         model = init_model_reg((nLayer, nY, nX))
         # Debug info
         if i==0:
-            print(model.summary())
-        print("Training data samples: "+str(len(idx_trains[i])))
+            logging.debug(model.summary())
+        logging.info("Training data samples: "+str(len(idx_trains[i])))
         steps_train = np.ceil(len(idx_trains[i])/args.batch_size)
-        print("Training data steps: " + str(steps_train))
-        print("Testing data samples: "+ str(len(idx_tests[i])))
+        logging.debug("Training data steps: " + str(steps_train))
+        logging.info("Testing data samples: "+ str(len(idx_tests[i])))
         steps_test = np.ceil(len(idx_tests[i])/args.batch_size)
-        print("Testing data steps: " + str(steps_test))
+        logging.debug("Testing data steps: " + str(steps_test))
         # Fitting model
         hist = model.fit_generator(data_generator_reg(iotab.iloc[idx_trains[i],:], args.batch_size, ylab='t1hr', logy=args.logy), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
         # Prediction
@@ -279,14 +280,12 @@ def main():
         yt = np.array(iotab['t1hr'])[idx_tests[i]]
         ys.append(pd.DataFrame({'y': yt, 'y_pred': y_pred.flatten()}))
         hists.append(hist.history) 
-        cv_report.append(report_evaluation(yt, y_pred))
+        cv_report.append(report_evaluation(yt, y_pred.flatten()))
         # Debug info
-        print('Histogram of y_true: ')
-        print(np.histogram(yt, bins=[0, 1, 5, 10, 40, 1000]))
-        #print(np.histogram(y_to_log(yt)))
-        print('Histogram of y_pred: ')
-        print(np.histogram(y_pred, bins=[0, 1, 5, 10, 40, 1000]))
-        #print(np.histogram(y_pred))
+        logging.debug('Histogram of y_true: ')
+        logging.debug(np.histogram(yt, bins=prec_bins))
+        logging.debug('Histogram of y_pred: ')
+        logging.debug(np.histogram(y_pred, bins=prec_bins))
     # Output results
     pd.concat(ys).to_csv(args.output+'_reg_ys.csv')
     pd.DataFrame(hists).to_csv(args.output+'_reg_hist.csv')
