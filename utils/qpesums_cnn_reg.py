@@ -230,7 +230,7 @@ def main():
     parser.add_argument('--rawy', '-y', help='the file containing the precipitation data.')
     parser.add_argument('--output', '-o', help='the file to store training history.')
     parser.add_argument('--samplesize', '-s', default=2, type=int, help='Weighted sampling size (multiple the original size).')
-    parser.add_argument('--logy', '-f', default=False, type=bool, help='Use Y in log-space.')
+    parser.add_argument('--logy', '-g', default=0, type=int, choices=range(0, 2), help='Use Y in log-space.')
     parser.add_argument('--batch_size', '-b', default=16, type=int, help='number of epochs.')
     parser.add_argument('--epochs', '-e', default=1, type=int, help='number of epochs.')
     parser.add_argument('--kfold', '-k', default=2, type=int, help='number of folds for cross validation.')
@@ -273,13 +273,13 @@ def main():
         steps_test = np.ceil(len(idx_tests[i])/args.batch_size)
         logging.debug("Testing data steps: " + str(steps_test))
         # Fitting model
-        hist = model.fit_generator(data_generator_reg(iotab.iloc[idx_trains[i],:], args.batch_size, ylab='t1hr', logy=args.logy), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
+        hist = model.fit_generator(data_generator_reg(iotab.iloc[idx_trains[i],:], args.batch_size, ylab='t1hr', logy=(args.logy)==1), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
         # Prediction
-        y_pred = model.predict_generator(data_generator_reg(iotab.iloc[idx_tests[i],:], args.batch_size, ylab='t1hr', logy=args.logy), steps=steps_test, verbose=0)
+        y_pred = model.predict_generator(data_generator_reg(iotab.iloc[idx_tests[i],:], args.batch_size, ylab='t1hr', logy=(args.logy)==1), steps=steps_test, verbose=0)
         # Prepare output
         yt = np.array(iotab['t1hr'])[idx_tests[i]]
         ys.append(pd.DataFrame({'y': yt, 'y_pred': y_pred.flatten()}))
-        hists.append(hist.history) 
+        hists.append(pd.DataFrame(hist.history)) 
         cv_report.append(report_evaluation(yt, y_pred.flatten()))
         # Debug info
         logging.debug('Histogram of y_true: ')
