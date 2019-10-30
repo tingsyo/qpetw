@@ -72,14 +72,14 @@ def loadIOTab(srcx, srcy, dropna=False):
     # Done
     return(iotab)
 
-def generate_samples(iotab, ylab='y', prec_bins=[0, 1, 5, 10, 20, 40, 500], num_epoch=10, shuffle=True):
-    '''Create weighted sampling list'''
+def generate_equal_samples(iotab, ylab='y', prec_bins=[0, 1, 5, 10, 20, 40, 500], shuffle=True):
+    '''Create equal sampling list: 
+           repeat sample rare categories to mtach the frequency of the majority case.
+    '''
     # Analysis the Precipitation
     prec_hist = np.histogram(iotab[ylab], bins=prec_bins)
-    p = 1/(prec_hist[0]/prec_hist[0][-1])           # Calculate probability
-    p = p/sum(p)                                    # Normalize the probability
-    n = sum(prec_hist[0])*num_epoch                 # Total number of samples
-    nrep = np.round(n*p/prec_hist[0]).astype(int)   # Convert to numbers of sampling
+    maxc = np.max(prec_hist[0])                     # Count the most frequent category
+    nrep = np.round(maxc/prec_hist[0]).astype(int)  # Multiples required to reach max-count
     # Categorize precipitation by specified bins
     iotab['prec_cat'] = np.digitize(iotab[ylab], bins=prec_bins)
     logging.debug('Sample histogram before weighted sampling:')
@@ -89,7 +89,7 @@ def generate_samples(iotab, ylab='y', prec_bins=[0, 1, 5, 10, 20, 40, 500], num_
         repeat_n = nrep[icat-1]
         tmp = iotab.loc[iotab['prec_cat']==icat,:]
         print('Append data category: '+str(icat)+' for '+ str(repeat_n) +' times with size '+str(tmp.shape))
-        for j in range(int(repeat_n)):
+        for j in range(int(repeat_n)-1):
             iotab = iotab.append(tmp, ignore_index=True)
     logging.debug('Sample histogram after weighted sampling:')
     logging.debug(iotab['prec_cat'].value_counts())
@@ -249,7 +249,7 @@ def main():
     #-------------------------------
     # Create weited sampling rom IOdata
     #-------------------------------
-    iotab = generate_samples(iotab, ylab='t1hr', num_epoch=args.samplesize, shuffle=True)
+    iotab = generate_equal_samples(iotab, ylab='t1hr', shuffle=True)
     #-------------------------------
     # Create Cross Validation splits
     #-------------------------------
@@ -288,7 +288,7 @@ def main():
         logging.debug(np.histogram(y_pred, bins=prec_bins))
     # Output results
     pd.concat(ys).to_csv(args.output+'_reg_ys.csv')
-    pd.DataFrame(hists).to_csv(args.output+'_reg_hist.csv')
+    pd.concat(hists).to_csv(args.output+'_reg_hist.csv')
     pd.DataFrame(cv_report).to_csv(args.output+'_reg_report.csv')
     # done
     return(0)
