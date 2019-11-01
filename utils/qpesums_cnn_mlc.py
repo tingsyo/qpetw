@@ -35,7 +35,9 @@ nLayer = 6                      # 6 10-min dbz for an hour
 nY = 275                        # y-dimension of dbz data
 nX = 162                        # x-dimension of dbz data
 batchSize = 128                 # Batch size for training / testing
-prec_bins=[0, 1, 5, 10, 20, 40, 500]
+prec_bins=[0, 0.5, 10, 15, 30, 1000]
+yseg_stat = [0.5, 8, 13, 29]    # 40-year statistics of hourly precipitation of trace, 90%, 95%, and 99% percentile
+yseg = [0.5, 10, 15, 30]        # Actual segmentation for precipitation
 
 #-----------------------------------------------------------------------
 # Functions
@@ -81,12 +83,12 @@ def generate_equal_samples(iotab, ylab='y', prec_bins=[0, 1, 5, 10, 20, 40, 500]
     maxc = np.max(prec_hist[0])                     # Count the most frequent category
     nrep = np.round(maxc/prec_hist[0]).astype(int)  # Multiples required to reach max-count
     # Categorize precipitation by specified bins
-    iotab['prec_cat'] = np.digitize(iotab[ylab], bins=prec_bins)
+    iotab['prec_cat'] = np.digitize(iotab[ylab], bins=prec_bins[1:-1])
     logging.debug('Sample histogram before weighted sampling:')
-    logging.debug(iotab['prec_cat'].value_counts())
+    logging.debug(iotab['prec_cat'].value_counts().sort_index())
     # Repeat sampling by p
-    for icat in range(1,len(prec_bins)):
-        repeat_n = nrep[icat-1]
+    for icat in range(0,len(prec_bins)-1):
+        repeat_n = nrep[icat]
         tmp = iotab.loc[iotab['prec_cat']==icat,:]
         print('Append data category: '+str(icat)+' for '+ str(repeat_n) +' times with size '+str(tmp.shape))
         for j in range(int(repeat_n)-1):
@@ -100,7 +102,7 @@ def generate_equal_samples(iotab, ylab='y', prec_bins=[0, 1, 5, 10, 20, 40, 500]
     return(iotab)
 
 # CNN
-def init_model_reg(input_shape):
+def init_model_mlc(input_shape):
     """
     :Return: 
       Newly initialized model (regression).
@@ -136,14 +138,14 @@ def init_model_reg(input_shape):
     x = Dense(16, activation='relu', name='fc2')(x)
     x = BatchNormalization(axis=1)(x)
     # Output layer
-    out = Dense(1, activation='linear', name='main_output')(x)
+    out = Dense(5, activation='sigmoid', name='main_output')(x)
     # Initialize model
     model = Model(inputs = inputs, outputs = out)
     # Define compile parameters
     adam = Adam(lr=0.01, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-    #sgd = SGD(lr=0.01, momentum=1e-8, decay=0.001, nesterov=True)#, clipvalue=1.)
-    model.compile(loss='mse', optimizer=adam, metrics=['mae','cosine_similarity'])
-    return(model)
+    model.compile(loss='binary_crossentropy', optimizer=adam, metrics=['accuracy'])
+    #encoder = Model(inputs = inputs, outputs = x)
+    return((model, encoder))
 
 def loadDBZ(flist):
     ''' Load a list a dbz files (in npy format) into one numpy array. '''
@@ -153,23 +155,11 @@ def loadDBZ(flist):
         xdata.append(tmp)
     x = np.array(xdata, dtype=np.float32)
     return(x)
-    
-def y_to_log(y):
-    ''' Convert the y to log(y+1). '''
-    ylog = np.log(y+1).astype(np.float32)
-    return(ylog)
 
-def log_to_y(y):
-    ''' Convert the predicted y in log-scale back to original scale. '''
-    yori = (np.exp(y.flatten())-1.0).astype(np.float32)
-    yori[yori<0.5] = 0.                          # Set the minimal values to 0.
-    return(yori)
-
-def data_generator_reg(iotab, batch_size, ylab='y', logy=False):
+def data_generator_mlc(iotab, batch_size, ylab='y'):
     ''' Data generator for batched processing. '''
     nSample = len(iotab)
-    y = np.array(iotab[ylab], dtype=np.float32).reshape(nSample, 1)
-    #print(y[:5])
+    y = np.array(iotab[ylab])
     # This line is just to make the generator infinite, keras needs that    
     while True:
         batch_start = 0
@@ -177,10 +167,7 @@ def data_generator_reg(iotab, batch_size, ylab='y', logy=False):
         while batch_start < nSample:
             limit = min(batch_end, nSample)
             X = loadDBZ(iotab['xuri'][batch_start:limit])
-            if logy:
-                Y = y_to_log(y[batch_start:limit])
-            else:
-                Y = y[batch_start:limit]/100.
+            Y = to_onehot(y[batch_start:limit])
             #print(X.shape)
             yield (X,Y) #a tuple with two numpy arrays with batch_size samples     
             batch_start += batch_size   
@@ -188,7 +175,7 @@ def data_generator_reg(iotab, batch_size, ylab='y', logy=False):
     # End of generator
 
 # Function to give report
-def report_evaluation(y_true, y_pred, verbose=0):
+def report_evaluation_mlc(y_true, y_pred, verbose=0):
     import sklearn.metrics as metrics
     # Calculate measures
     results = {}
@@ -239,7 +226,6 @@ def main():
     parser.add_argument('--rawy', '-y', help='the file containing the precipitation data.')
     parser.add_argument('--output', '-o', help='the file to store training history.')
     parser.add_argument('--samplesize', '-s', default=2, type=int, help='Weighted sampling size (multiple the original size).')
-    parser.add_argument('--logy', '-g', default=0, type=int, choices=range(0, 2), help='Use Y in log-space.')
     parser.add_argument('--batch_size', '-b', default=16, type=int, help='number of epochs.')
     parser.add_argument('--epochs', '-e', default=1, type=int, help='number of epochs.')
     parser.add_argument('--kfold', '-k', default=2, type=int, help='number of folds for cross validation.')
@@ -266,7 +252,7 @@ def main():
     #-------------------------------
     # Create Cross Validation splits
     #-------------------------------
-    idx_trains, idx_tests = create_CV_splits(iotab, k=args.kfold, ysegs=prec_bins, ylab='t1hr', shuffle=False)
+    idx_trains, idx_tests = create_CV_splits(iotab, k=args.kfold, ysegs=prec_bins[1:-1], ylab='t1hr', shuffle=False)
     #-------------------------------
     # Run through CV
     #-------------------------------
@@ -286,9 +272,9 @@ def main():
         steps_test = np.ceil(len(idx_tests[i])/args.batch_size)
         logging.debug("Testing data steps: " + str(steps_test))
         # Fitting model
-        hist = model.fit_generator(data_generator_reg(iotab.iloc[idx_trains[i],:], args.batch_size, ylab='t1hr', logy=(args.logy)==1), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
+        hist = model.fit_generator(data_generator_reg(iotab.iloc[idx_trains[i],:], args.batch_size, ylab='t1hr'), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
         # Prediction
-        y_pred = model.predict_generator(data_generator_reg(iotab.iloc[idx_tests[i],:], args.batch_size, ylab='t1hr', logy=(args.logy)==1), steps=steps_test, verbose=0)
+        y_pred = model.predict_generator(data_generator_reg(iotab.iloc[idx_tests[i],:], args.batch_size, ylab='t1hr'), steps=steps_test, verbose=0)
         # Prepare output
         yt = np.array(iotab['t1hr'])[idx_tests[i]]
         ys.append(pd.DataFrame({'y': yt, 'y_pred': y_pred.flatten()}))
