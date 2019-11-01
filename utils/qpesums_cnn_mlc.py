@@ -74,7 +74,7 @@ def loadIOTab(srcx, srcy, dropna=False):
     # Done
     return(iotab)
 
-def generate_equal_samples(iotab, ylab='y', prec_bins=[0, 1, 5, 10, 20, 40, 500], shuffle=True):
+def generate_equal_samples(iotab, prec_bins, ylab='y', shuffle=True):
     '''Create equal sampling list: 
            repeat sample rare categories to mtach the frequency of the majority case.
     '''
@@ -85,7 +85,7 @@ def generate_equal_samples(iotab, ylab='y', prec_bins=[0, 1, 5, 10, 20, 40, 500]
     # Categorize precipitation by specified bins
     iotab['prec_cat'] = np.digitize(iotab[ylab], bins=prec_bins[1:-1])
     logging.debug('Sample histogram before weighted sampling:')
-    logging.debug(iotab['prec_cat'].value_counts().sort_index())
+    logging.debug(iotab['prec_cat'].value_counts())
     # Repeat sampling by p
     for icat in range(0,len(prec_bins)-1):
         repeat_n = nrep[icat]
@@ -100,6 +100,94 @@ def generate_equal_samples(iotab, ylab='y', prec_bins=[0, 1, 5, 10, 20, 40, 500]
         iotab = iotab.sample(frac=1)#.reset_index(drop=True)
     #
     return(iotab)
+
+def loadDBZ(flist):
+    ''' Load a list a dbz files (in npy format) into one numpy array. '''
+    xdata = []
+    for f in flist:
+        tmp = np.load(f)
+        xdata.append(tmp)
+    x = np.array(xdata, dtype=np.float32)
+    return(x)
+
+# Function to give report
+def report_evaluation(y_true, y_pred, verbose=0):
+    import sklearn.metrics as metrics
+    # Calculate measures
+    results = {}
+    results['y_true_mean'] = y_true.mean()
+    results['y_true_var'] = y_true.var()
+    results['y_pred_mean'] = y_pred.mean()
+    results['y_pred_var'] = y_pred.var()
+    results['rmse'] = np.sqrt(metrics.mean_squared_error(y_true,y_pred))
+    if y_pred.var()<=10e-8:
+        results['corr'] = 0
+    else:
+        results['corr'] = np.corrcoef(y_true,y_pred)[0,1]
+    # Print results if verbose > 0
+    if verbose>0:
+        if verbose>1:
+            print('Mean of y_true: ' + str(results['y_true_mean']))
+            print('Variance of y_true: ' + str(results['y_true_var']))
+            print('Mean of y_pred: ' + str(results['y_pred_mean']))
+            print('Variance of y_pred: ' + str(results['y_pred_var']))
+        print('RMSE: ' + str(results['rmse']))
+        print('Corr: ' + str(results['corr']))
+    # Return results
+    return(results)
+
+# Create cross validation splits
+def create_CV_splits(iotable, k=5, ysegs=None, ylab='y', shuffle=False):
+    from sklearn.model_selection import StratifiedKFold, KFold
+    # Index of each fold
+    cvidx_train = []
+    cvidx_test = []
+    # If segmentation of y is not specified, use simple KFold
+    if ysegs is None:
+        kf = KFold(n_splits=k, random_state=None, shuffle=shuffle)
+        for idx_train, idx_test in kf.split(iotable['xuri']):
+            cvidx_train.append(idx_train)
+            cvidx_test.append(idx_test)
+    else:
+        kf = StratifiedKFold(n_splits=k, random_state=None, shuffle=shuffle)
+        for idx_train, idx_test in kf.split(iotable['xuri'], np.digitize(iotable[ylab], ysegs)):
+            cvidx_train.append(idx_train)
+            cvidx_test.append(idx_test)
+    return((cvidx_train, cvidx_test))
+
+def to_onehot(y, nclasses=5):
+    ''' Represent the given y vector into one-hot encoding of 5 classes (0,1,2,3,4). '''
+    L = len(y)                                          # Length of vector y
+    yoh = np.zeros((L, nclasses), dtype=np.float32)     # The one-hot encoding, initialized with 0
+    for i in range(L):
+        yoh[i, 0:y[i]] = 1                              # Encode the corresponding class
+        yoh[i, y[i]] = 1                                # Encode the corresponding class
+    return(yoh)
+
+def onehot_to_category(y):
+    '''Convert one-hot encoding back to category'''
+    c = []
+    for r in y:
+        c.append(np.max(np.where(r==1)))
+    return(np.array(c))
+
+def data_generator_mlc(iotab, batch_size, ylab='y'):
+    ''' Data generator for batched processing. '''
+    nSample = len(iotab)
+    y = np.array(iotab[ylab])
+    # This line is just to make the generator infinite, keras needs that    
+    while True:
+        batch_start = 0
+        batch_end = batch_size
+        while batch_start < nSample:
+            limit = min(batch_end, nSample)
+            X = loadDBZ(iotab['xuri'][batch_start:limit])
+            Y = to_onehot(y[batch_start:limit])
+            #print(X.shape)
+            yield (X,Y) #a tuple with two numpy arrays with batch_size samples     
+            batch_start += batch_size   
+            batch_end += batch_size
+    # End of generator
 
 # CNN
 def init_model_mlc(input_shape):
@@ -143,81 +231,11 @@ def init_model_mlc(input_shape):
     model = Model(inputs = inputs, outputs = out)
     # Define compile parameters
     adam = Adam(lr=0.01, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    #sgd = SGD(lr=0.01, momentum=1e-8, decay=0.001, nesterov=True)#, clipvalue=1.)
     model.compile(loss='binary_crossentropy', optimizer=adam, metrics=['accuracy'])
-    #encoder = Model(inputs = inputs, outputs = x)
+    encoder = Model(inputs = inputs, outputs = x)
     return((model, encoder))
 
-def loadDBZ(flist):
-    ''' Load a list a dbz files (in npy format) into one numpy array. '''
-    xdata = []
-    for f in flist:
-        tmp = np.load(f)
-        xdata.append(tmp)
-    x = np.array(xdata, dtype=np.float32)
-    return(x)
-
-def data_generator_mlc(iotab, batch_size, ylab='y'):
-    ''' Data generator for batched processing. '''
-    nSample = len(iotab)
-    y = np.array(iotab[ylab])
-    # This line is just to make the generator infinite, keras needs that    
-    while True:
-        batch_start = 0
-        batch_end = batch_size
-        while batch_start < nSample:
-            limit = min(batch_end, nSample)
-            X = loadDBZ(iotab['xuri'][batch_start:limit])
-            Y = to_onehot(y[batch_start:limit])
-            #print(X.shape)
-            yield (X,Y) #a tuple with two numpy arrays with batch_size samples     
-            batch_start += batch_size   
-            batch_end += batch_size
-    # End of generator
-
-# Function to give report
-def report_evaluation_mlc(y_true, y_pred, verbose=0):
-    import sklearn.metrics as metrics
-    # Calculate measures
-    results = {}
-    results['y_true_mean'] = y_true.mean()
-    results['y_true_var'] = y_true.var()
-    results['y_pred_mean'] = y_pred.mean()
-    results['y_pred_var'] = y_pred.var()
-    results['rmse'] = np.sqrt(metrics.mean_squared_error(y_true,y_pred))
-    if y_pred.var()<=10e-8:
-        results['corr'] = 0
-    else:
-        results['corr'] = np.corrcoef(y_true,y_pred)[0,1]
-    # Print results if verbose > 0
-    if verbose>0:
-        if verbose>1:
-            print('Mean of y_true: ' + str(results['y_true_mean']))
-            print('Variance of y_true: ' + str(results['y_true_var']))
-            print('Mean of y_pred: ' + str(results['y_pred_mean']))
-            print('Variance of y_pred: ' + str(results['y_pred_var']))
-        print('RMSE: ' + str(results['rmse']))
-        print('Corr: ' + str(results['corr']))
-    # Return results
-    return(results)
-
-# Create cross validation splits
-def create_CV_splits(iotable, k=5, ysegs=None, ylab='y', shuffle=False):
-    from sklearn.model_selection import StratifiedKFold, KFold
-    # Index of each fold
-    cvidx_train = []
-    cvidx_test = []
-    # If segmentation of y is not specified, use simple KFold
-    if ysegs is None:
-        kf = KFold(n_splits=k, random_state=None, shuffle=shuffle)
-        for idx_train, idx_test in kf.split(iotable['xuri']):
-            cvidx_train.append(idx_train)
-            cvidx_test.append(idx_test)
-    else:
-        kf = StratifiedKFold(n_splits=k, random_state=None, shuffle=shuffle)
-        for idx_train, idx_test in kf.split(iotable['xuri'], np.digitize(iotable[ylab], ysegs)):
-            cvidx_train.append(idx_train)
-            cvidx_test.append(idx_test)
-    return((cvidx_train, cvidx_test))
 #-----------------------------------------------------------------------
 def main():
     # Configure Argument Parser
@@ -276,15 +294,16 @@ def main():
         # Prediction
         y_pred = model.predict_generator(data_generator_reg(iotab.iloc[idx_tests[i],:], args.batch_size, ylab='t1hr'), steps=steps_test, verbose=0)
         # Prepare output
-        yt = np.array(iotab['t1hr'])[idx_tests[i]]
-        ys.append(pd.DataFrame({'y': yt, 'y_pred': y_pred.flatten()}))
+        yt = np.array(iotab['prec_cat'])[idx_tests[i]]
+        yp = onehot_to_category(yp = ((y_pred>0.5)*1.0))
+        ys.append(pd.DataFrame({'y': yt, 'y_pred': yp+1}))
         hists.append(pd.DataFrame(hist.history)) 
-        cv_report.append(report_evaluation(yt, y_pred.flatten()))
+        cv_report.append(report_evaluation(yt, yp))
         # Debug info
         logging.debug('Histogram of y_true: ')
-        logging.debug(np.histogram(yt, bins=prec_bins))
+        logging.debug(np.histogram(yt, bins=5))
         logging.debug('Histogram of y_pred: ')
-        logging.debug(np.histogram(y_pred, bins=prec_bins))
+        logging.debug(np.histogram(y_pred, bins=5))
     # Output results
     pd.concat(ys).to_csv(args.output+'_reg_ys.csv')
     pd.concat(hists).to_csv(args.output+'_reg_hist.csv')
