@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Dropout, Dense, Flatten, Activation
-from tensorflow.keras.layers import Conv2D, AveragePooling2D, MaxPooling2D
+from tensorflow.keras.layers import Conv2D, BatchNormalization, MaxPooling2D
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.optimizers import SGD, Adam
 from tensorflow.keras import regularizers
@@ -199,7 +199,7 @@ def init_model_mlc(input_shape):
     """
     # Input layer
     inputs = Input(shape=input_shape)
-    # blovk1: CONV -> CONV -> MaxPooling
+    # blovk1: CONV -> MaxPooling
     x = Conv2D(filters=32, kernel_size=(3,3), activation='relu', name='block1_conv1', data_format='channels_first')(inputs)
     x = BatchNormalization(axis=1)(x)
     x = MaxPooling2D((2,2), name='block1_pool', data_format='channels_first')(x)
@@ -218,12 +218,19 @@ def init_model_mlc(input_shape):
     x = BatchNormalization(axis=1)(x)
     x = MaxPooling2D((2,2), name='block3_pool', data_format='channels_first')(x)
     x = Dropout(0.25)(x)
+    # block4: CONV -> CONV -> MaxPooling
+    x = Conv2D(256, (3,3), activation='relu', name='block4_conv1',data_format='channels_first')(x)
+    x = BatchNormalization(axis=1)(x)
+    x = Conv2D(256, (3,3), activation='relu', name='block4_conv2',data_format='channels_first')(x)
+    x = BatchNormalization(axis=1)(x)
+    x = MaxPooling2D((2,2), name='block4_pool', data_format='channels_first')(x)
+    x = Dropout(0.25)(x)
     # Output block: Flatten -> Dense -> Dense -> softmax output
     x = Flatten()(x)
     x = Dense(256, activation='relu', name='fc1')(x)
     x = BatchNormalization(axis=1)(x)
     x = Dropout(0.5)(x)
-    x = Dense(16, activation='relu', name='fc2')(x)
+    x = Dense(64, activation='relu', name='fc2')(x)
     x = BatchNormalization(axis=1)(x)
     # Output layer
     out = Dense(5, activation='sigmoid', name='main_output')(x)
@@ -263,7 +270,7 @@ def main():
     #-------------------------------
     # Create weighted sampling rom IOdata
     #-------------------------------
-    iotab = generate_equal_samples(iotab, ylab='t1hr', shuffle=True)
+    iotab = generate_equal_samples(iotab, prec_bins=prec_bins, ylab='t1hr', shuffle=True)
     # Set random seed if specified
     if not args.random_seed is None:
         tf.random.set_seed(args.random_seed)
@@ -279,10 +286,10 @@ def main():
     cv_report = []
     for i in range(len(idx_trains)):
         # Train
-        model = init_model_reg((nLayer, nY, nX))
+        model = init_model_mlc((nLayer, nY, nX))
         # Debug info
         if i==0:
-            logging.debug(model.summary())
+            logging.debug(model[0].summary())
         logging.info("Training data samples: "+str(len(idx_trains[i])))
         steps_train = np.ceil(len(idx_trains[i])/args.batch_size)
         logging.debug("Training data steps: " + str(steps_train))
@@ -290,9 +297,9 @@ def main():
         steps_test = np.ceil(len(idx_tests[i])/args.batch_size)
         logging.debug("Testing data steps: " + str(steps_test))
         # Fitting model
-        hist = model.fit_generator(data_generator_reg(iotab.iloc[idx_trains[i],:], args.batch_size, ylab='t1hr'), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
+        hist = model[0].fit_generator(data_generator_mlc(iotab.iloc[idx_trains[i],:], args.batch_size, ylab='prec_cat'), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
         # Prediction
-        y_pred = model.predict_generator(data_generator_reg(iotab.iloc[idx_tests[i],:], args.batch_size, ylab='t1hr'), steps=steps_test, verbose=0)
+        y_pred = model[0].predict_generator(data_generator_mlc(iotab.iloc[idx_tests[i],:], args.batch_size, ylab='prec_cat'), steps=steps_test, verbose=0)
         # Prepare output
         yt = np.array(iotab['prec_cat'])[idx_tests[i]]
         yp = onehot_to_category(yp = ((y_pred>0.5)*1.0))

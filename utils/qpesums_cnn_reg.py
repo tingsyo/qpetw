@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Dropout, Dense, Flatten, Activation
-from tensorflow.keras.layers import Conv2D, AveragePooling2D, MaxPooling2D
+from tensorflow.keras.layers import Conv2D, BatchNormalization, MaxPooling2D
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.optimizers import SGD, Adam
 from tensorflow.keras import regularizers
