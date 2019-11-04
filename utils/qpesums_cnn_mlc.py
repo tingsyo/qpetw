@@ -302,7 +302,7 @@ def main():
         y_pred = model[0].predict_generator(data_generator_mlc(iotab.iloc[idx_tests[i],:], args.batch_size, ylab='prec_cat'), steps=steps_test, verbose=0)
         # Prepare output
         yt = np.array(iotab['prec_cat'])[idx_tests[i]]
-        yp = onehot_to_category(yp = ((y_pred>0.5)*1.0))
+        yp = onehot_to_category(((y_pred>0.5)*1.0))
         ys.append(pd.DataFrame({'y': yt, 'y_pred': yp+1}))
         hists.append(pd.DataFrame(hist.history)) 
         cv_report.append(report_evaluation(yt, yp))
