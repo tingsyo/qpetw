@@ -294,8 +294,8 @@ def main():
         # Debug info
         if i==0:
             logging.debug(model[0].summary())
-        logging.info("Training data samples: "+str(len(idx_trains[i])))
-        steps_train = np.ceil(len(idx_trains[i])/args.batch_size)
+        logging.info("Training data samples: "+str(iotrain.shape[0]))
+        steps_train = np.ceil(iotrain.shape[0]/args.batch_size)
         logging.debug("Training data steps: " + str(steps_train))
         logging.info("Testing data samples: "+ str(len(idx_tests[i])))
         steps_test = np.ceil(len(idx_tests[i])/args.batch_size)

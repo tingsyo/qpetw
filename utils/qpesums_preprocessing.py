@@ -1,0 +1,87 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Utility script to preprocess RADAR data:
+- Read in QPESUMS data in text format (ny=275, nx=162).
+- Group 6 10-min files into one numpy array of 1hr interval (y-x-t).
+"""
+import os, csv, logging, argparse
+import numpy as np
+import pandas as pd
+
+__author__ = "Ting-Shuo Yo"
+__copyright__ = "Copyright 2019, DataQualia Lab Co. Ltd."
+__credits__ = ["Ting-Shuo Yo"]
+__license__ = "Apache License 2.0"
+__version__ = "0.1.0"
+__maintainer__ = "Ting-Shuo Yo"
+__email__ = "tingyo@dataqualia.com"
+__status__ = "development"
+__date__ = '2019-10-27'
+
+def search_qpesums_text(srcdir, prefix='COMPREF.', ext='.txt'):
+    '''Search the specified the directory for QPESUMS data in text format and retrieve related information.
+         example file name: COMPREF.20160101.0010.txt
+    '''
+    import os
+    import pandas as pd
+    fileinfo = []
+    # Walk through the specified directory
+    for root, dirs, files in os.walk(srcdir, followlinks=True):
+        for f in files:
+            if f.startswith(prefix) and f.endswith(ext):
+                # Parse file name for time information
+                furi = os.path.join(root, f)
+                timestr = f.replace(prefix,'').replace(ext,'')
+                # Append data
+                fileinfo.append({'furi':furi, 'timestamp':timestr})
+    # Return the results as a DataFrame
+    results = pd.DataFrame(fileinfo).sort_values('timestamp').reset_index(drop=True)
+    return(results)
+
+def parse_time_string(tstr, infmt='%Y%m%d.%H%M'):
+    '''Parse a time string into a datetime object. The given format was YYYYMMDD.HHMM.
+       This function is separated in case the format of time-string might change over time.
+    '''
+    import datetime
+    tobj = datetime.datetime.strptime(tstr, fmt)
+    return(tobj)
+
+def merge_10min_to_hourly(finfo, timeshift):
+    '''The main function of merging 6 10-min data files into one hourly data array.
+    '''
+
+
+#-----------------------------------------------------------------------
+# Main function
+#-----------------------------------------------------------------------
+def main():
+    # Configure Argument Parser
+    parser = argparse.ArgumentParser(description='Retrieve 10-min QPESUMS data in TEXT format and convert into 1-hour y-x-t numpy arrays.')
+    parser.add_argument('--input', '-i', help='the directory containing the QPESUMS data.')
+    parser.add_argument('--output', '-o', help='the directory to store the output files.')
+    parser.add_argument('--log', '-l', default='tmp.log', help='the log file.')
+    parser.add_argument('--prefix', '-p', default='COMPREF.', help='the prefix of the QPESUMS data files.')
+    parser.add_argument('--ext', '-e', default='.txt', help='the extension of the QPESUMS data files.')
+    parser.add_argument('--timeshift', '-s', default=8, help='Adjustment of the time zone. 8 by default, means change from UTC to LST of Taipei.')
+    args = parser.parse_args()
+    # Set up logging
+    if not args.logfile is None:
+        logging.basicConfig(level=logging.DEBUG, filename=args.logfile, filemode='w')
+    else:
+        logging.basicConfig(level=logging.DEBUG)
+    logging.debug(args)
+    # Scan and parse qpesums data files
+    logging.info('Searching QPESUMS data files in ' + args.input)
+    finfo = search_qpesums_text(args.input, prefix=args.prefix, ext=args.ext)
+    logging.info('Totally data files found: ' + str(finfo.shape[0]))
+    # Data processing and output
+    merge_10min_to_hourly(finfo, args.timeshift)
+    # done
+    return(0)
+    
+#==========
+# Script
+#==========
+if __name__=="__main__":
+    main()
