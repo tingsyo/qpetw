@@ -268,10 +268,8 @@ def main():
     #-------------------------------
     iotab = loadIOTab(args.rawx, args.rawy, dropna=True)
     #-------------------------------
-    # Create weighted sampling rom IOdata
-    #-------------------------------
-    iotab = generate_equal_samples(iotab, prec_bins=prec_bins, ylab='t1hr', shuffle=True)
     # Set random seed if specified
+    #-------------------------------
     if not args.random_seed is None:
         tf.random.set_seed(args.random_seed)
     #-------------------------------
@@ -285,7 +283,10 @@ def main():
     hists = []
     cv_report = []
     for i in range(len(idx_trains)):
-        # Train
+        # Create weighted sampling for training data
+        iotrain = iotab.iloc[idx_trains[i],:]
+        iotrain = generate_equal_samples(iotrain, prec_bins=prec_bins, ylab='t1hr', shuffle=True)
+        # Initialize model
         model = init_model_mlc((nLayer, nY, nX))
         # Debug info
         if i==0:
@@ -297,13 +298,14 @@ def main():
         steps_test = np.ceil(len(idx_tests[i])/args.batch_size)
         logging.debug("Testing data steps: " + str(steps_test))
         # Fitting model
-        hist = model[0].fit_generator(data_generator_mlc(iotab.iloc[idx_trains[i],:], args.batch_size, ylab='prec_cat'), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
+        hist = model[0].fit_generator(data_generator_mlc(iotrain, args.batch_size, ylab='prec_cat'), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
         # Prediction
         y_pred = model[0].predict_generator(data_generator_mlc(iotab.iloc[idx_tests[i],:], args.batch_size, ylab='prec_cat'), steps=steps_test, verbose=0)
         # Prepare output
         yt = np.array(iotab['prec_cat'])[idx_tests[i]]
-        yp = onehot_to_category(((y_pred>0.5)*1.0))
-        ys.append(pd.DataFrame({'y': yt, 'y_pred': yp+1}))
+        yp = onehot_to_category((y_pred>0.5)*1)
+        ys.append(pd.DataFrame({'date': iotab.date..iloc[idx_tests[i]], 'y': yt, 'y_pred': yp, 
+            'y0':y_pred[:,0], 'y1':y_pred[:,1], 'y2':y_pred[:,2], 'y3':y_pred[:,3], 'y4':y_pred[:,4]}))
         hists.append(pd.DataFrame(hist.history)) 
         cv_report.append(report_evaluation(yt, yp))
         # Debug info
@@ -312,9 +314,9 @@ def main():
         logging.debug('Histogram of y_pred: ')
         logging.debug(np.histogram(y_pred, bins=5))
     # Output results
-    pd.concat(ys).to_csv(args.output+'_reg_ys.csv')
-    pd.concat(hists).to_csv(args.output+'_reg_hist.csv')
-    pd.DataFrame(cv_report).to_csv(args.output+'_reg_report.csv')
+    pd.concat(ys).to_csv(args.output+'_mlc_ys.csv')
+    pd.concat(hists).to_csv(args.output+'_mlc_hist.csv')
+    pd.DataFrame(cv_report).to_csv(args.output+'_mlc_report.csv')
     # done
     return(0)
     
