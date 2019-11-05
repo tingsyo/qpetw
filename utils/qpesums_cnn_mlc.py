@@ -11,6 +11,7 @@ This version is based on TensorFlow 2.0
 import os, csv, logging, argparse, glob, h5py, pickle
 import numpy as np
 import pandas as pd
+from sklearn.metrics import confusion_matrix as cfm
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Dropout, Dense, Flatten, Activation
 from tensorflow.keras.layers import Conv2D, BatchNormalization, MaxPooling2D
@@ -83,7 +84,7 @@ def generate_equal_samples(iotab, prec_bins, ylab='y', shuffle=True):
     maxc = np.max(prec_hist[0])                     # Count the most frequent category
     nrep = np.round(maxc/prec_hist[0]).astype(int)  # Multiples required to reach max-count
     # Categorize precipitation by specified bins
-    iotab['prec_cat'] = np.digitize(iotab[ylab], bins=prec_bins[1:-1])
+    #iotab['prec_cat'] = np.digitize(iotab[ylab], bins=prec_bins[1:-1])
     logging.debug('Sample histogram before weighted sampling:')
     logging.debug(iotab['prec_cat'].value_counts())
     # Repeat sampling by p
@@ -267,6 +268,8 @@ def main():
     # IO data generation
     #-------------------------------
     iotab = loadIOTab(args.rawx, args.rawy, dropna=True)
+    # Categorize y
+    iotab['prec_cat'] = np.digitize(iotab['t1hr'], bins=prec_bins[1:-1])
     #-------------------------------
     # Set random seed if specified
     #-------------------------------
@@ -304,17 +307,15 @@ def main():
         # Prepare output
         yt = np.array(iotab['prec_cat'])[idx_tests[i]]
         yp = onehot_to_category((y_pred>0.5)*1)
-        ys.append(pd.DataFrame({'date': iotab.date..iloc[idx_tests[i]], 'y': yt, 'y_pred': yp, 
+        ys.append(pd.DataFrame({'date': iotab.date.iloc[idx_tests[i]], 'y': yt, 'y_pred': yp, 
             'y0':y_pred[:,0], 'y1':y_pred[:,1], 'y2':y_pred[:,2], 'y3':y_pred[:,3], 'y4':y_pred[:,4]}))
         hists.append(pd.DataFrame(hist.history)) 
         cv_report.append(report_evaluation(yt, yp))
         # Debug info
-        logging.debug('Histogram of y_true: ')
-        logging.debug(np.histogram(yt, bins=5))
-        logging.debug('Histogram of y_pred: ')
-        logging.debug(np.histogram(y_pred, bins=5))
+        logging.debug('Confusion Matrix: ')
+        logging.debug(cfm(yt, yp))
     # Output results
-    pd.concat(ys).to_csv(args.output+'_mlc_ys.csv')
+    pd.concat(ys).to_csv(args.output+'_mlc_ys.csv', index=False)
     pd.concat(hists).to_csv(args.output+'_mlc_hist.csv')
     pd.DataFrame(cv_report).to_csv(args.output+'_mlc_report.csv')
     # done
