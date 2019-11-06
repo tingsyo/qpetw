@@ -102,7 +102,7 @@ def aggregate_qpesums_data(current_time, data_info, time_shift=0):
 def merge_10min_to_hourly(data_info, outdir, time_shift=0):
     '''The main function of merging 6 10-min data files into one hourly data array.
     '''
-    import numy as np
+    import numpy as np
     from datetime import timedelta, datetime
     # Set up the start-time and end-time
     starttime = parse_time_string(data_info.timestamp.iloc[0])
@@ -131,14 +131,14 @@ def main():
     parser = argparse.ArgumentParser(description='Retrieve 10-min QPESUMS data in TEXT format and convert into 1-hour y-x-t numpy arrays.')
     parser.add_argument('--input', '-i', help='the directory containing the QPESUMS data.')
     parser.add_argument('--output', '-o', help='the directory to store the output files.')
-    parser.add_argument('--log', '-l', default='tmp.log', help='the log file.')
+    parser.add_argument('--log', '-l', default=None, help='the log file.')
     parser.add_argument('--prefix', '-p', default='COMPREF.', help='the prefix of the QPESUMS data files.')
     parser.add_argument('--ext', '-e', default='.txt', help='the extension of the QPESUMS data files.')
     parser.add_argument('--timeshift', '-s', default=8, help='Adjustment of the time zone. 8 by default, means change from UTC to LST of Taipei.')
     args = parser.parse_args()
     # Set up logging
-    if not args.logfile is None:
-        logging.basicConfig(level=logging.DEBUG, filename=args.logfile, filemode='w')
+    if not args.log is None:
+        logging.basicConfig(level=logging.DEBUG, filename=args.log, filemode='w')
     else:
         logging.basicConfig(level=logging.DEBUG)
     logging.debug(args)
