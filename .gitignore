@@ -35,3 +35,6 @@ tmp
 data
 qpf
 qpe
+*/*.csv
+*/*.log
+backup/*
