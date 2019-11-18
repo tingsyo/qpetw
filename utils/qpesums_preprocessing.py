@@ -19,6 +19,20 @@ __email__ = "tingyo@dataqualia.com"
 __status__ = "development"
 __date__ = '2019-10-27'
 
+def read_qpesums_text(furi):
+    '''Read the QPESUMS data provided by NCDR. It is stored as plain text in fixed-width-format.
+       Three data columns are longitude, latitude, and the maximal reflectivity.
+    '''
+    import pandas as pd
+    import numpy as np
+    results = None
+    try:
+        tmp = pd.read_fwf(furi, widths=[8,8,8], header=None)
+        results = np.float32(np.array(tmp.iloc[:,2])).reshape((275,162))
+    except pd.errors.EmptyDataError:
+        logging.error(furi + " is empty.")
+    return(results)
+
 def search_qpesums_text(srcdir, prefix='COMPREF.', ext='.txt'):
     '''Search the specified the directory for QPESUMS data in text format and retrieve related information.
          example file name: COMPREF.20160101.0010.txt
@@ -39,7 +53,7 @@ def search_qpesums_text(srcdir, prefix='COMPREF.', ext='.txt'):
     results = pd.DataFrame(fileinfo).sort_values('timestamp').reset_index(drop=True)
     return(results)
 
-def parse_time_string(tstr, infmt='%Y%m%d.%H%M'):
+def parse_time_string(tstr, fmt='%Y%m%d.%H%M'):
     '''Parse a time string into a datetime object. The given format was YYYYMMDD.HHMM.
        This function is separated in case the format of time-string might change over time.
     '''
@@ -47,9 +61,66 @@ def parse_time_string(tstr, infmt='%Y%m%d.%H%M'):
     tobj = datetime.datetime.strptime(tstr, fmt)
     return(tobj)
 
-def merge_10min_to_hourly(finfo, timeshift):
+def aggregate_qpesums_data(current_time, data_info, time_shift=0):
+    ''' - check the availability of involved data
+        - perform aggregation (y, x, t) if available
+        - time-zone conversion if necessary
+    '''
+    from datetime import timedelta, date
+    import numpy as np
+    import pandas as pd
+    # Get the previous 6 time-stamps with 10-min interval
+    rec = {'timestamp': current_time.strftime("%Y%m%d.%H")}
+    fcount = 0
+    tslist = []
+    for i in range(7,1,-1):
+        ts = (current_time-timedelta(minutes=(i*10))).strftime("%Y%m%d.%H%M")
+        # Check availability of required time-stamps
+        rec['m-'+str((i-1)*10)] = (ts in data_info.timestamp.values)*1
+        fcount += rec['m-'+str((i-1)*10)]
+        tslist.append(ts)
+    # Check data completeness
+    rec['complete'] = (fcount==6)
+    qdata = None
+    if fcount==6:
+        logging.debug('Aggregate data for '+current_time.strftime("%Y%m%d.%H"))
+        qdata = []
+        for ts in tslist:
+            tmp = read_qpesums_text(data_info.loc[data_info.timestamp==ts, 'furi'].iloc[0])
+            # Break if the given hour has missing data
+            if tmp is None:
+                logging.warning('Empty data found in '+current_time.strftime("%Y%m%d.%H")+', break.')
+                qdata = None
+                break
+            qdata.append(tmp)
+        qdata =  np.stack(qdata, axis=2)
+    # Shift time if necessary
+    if time_shift !=0:
+        rec['timestamp'] = (current_time+timedelta(hours=time_shift)).strftime("%Y%m%d.%H")
+    return((rec, qdata))
+
+def merge_10min_to_hourly(data_info, outdir, time_shift=0):
     '''The main function of merging 6 10-min data files into one hourly data array.
     '''
+    import numpy as np
+    from datetime import timedelta, datetime
+    # Set up the start-time and end-time
+    starttime = parse_time_string(data_info.timestamp.iloc[0])
+    endtime = parse_time_string(data_info.timestamp.iloc[-1])
+    # Loop through time-stamps by hour
+    dclist = []
+    ctime = starttime
+    while ctime <= endtime:
+        check, data = aggregate_qpesums_data(ctime, data_info, time_shift=time_shift)
+        dclist.append(check)
+        # Output the aggregated data to the outdir
+        if not data is None:
+            ofname = outdir + '/' + check['timestamp'].replace('.','') + '.npy'
+            np.save(ofname, data)
+        # Move forward by one hour
+        ctime += timedelta(hours=1)
+    #
+    return(pd.DataFrame(dclist))
 
 
 #-----------------------------------------------------------------------
@@ -60,14 +131,14 @@ def main():
     parser = argparse.ArgumentParser(description='Retrieve 10-min QPESUMS data in TEXT format and convert into 1-hour y-x-t numpy arrays.')
     parser.add_argument('--input', '-i', help='the directory containing the QPESUMS data.')
     parser.add_argument('--output', '-o', help='the directory to store the output files.')
-    parser.add_argument('--log', '-l', default='tmp.log', help='the log file.')
+    parser.add_argument('--log', '-l', default=None, help='the log file.')
     parser.add_argument('--prefix', '-p', default='COMPREF.', help='the prefix of the QPESUMS data files.')
     parser.add_argument('--ext', '-e', default='.txt', help='the extension of the QPESUMS data files.')
     parser.add_argument('--timeshift', '-s', default=8, help='Adjustment of the time zone. 8 by default, means change from UTC to LST of Taipei.')
     args = parser.parse_args()
     # Set up logging
-    if not args.logfile is None:
-        logging.basicConfig(level=logging.DEBUG, filename=args.logfile, filemode='w')
+    if not args.log is None:
+        logging.basicConfig(level=logging.DEBUG, filename=args.log, filemode='w')
     else:
         logging.basicConfig(level=logging.DEBUG)
     logging.debug(args)
@@ -76,7 +147,7 @@ def main():
     finfo = search_qpesums_text(args.input, prefix=args.prefix, ext=args.ext)
     logging.info('Totally data files found: ' + str(finfo.shape[0]))
     # Data processing and output
-    merge_10min_to_hourly(finfo, args.timeshift)
+    merge_10min_to_hourly(finfo, args.output, args.timeshift)
     # done
     return(0)
     
