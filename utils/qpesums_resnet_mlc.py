@@ -17,10 +17,9 @@ import tensorflow as tf
 from tensorflow.keras.layers import Input, Dropout, Dense, Flatten, Activation
 from tensorflow.keras.layers import Conv2D, BatchNormalization, MaxPooling2D, Add
 from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.optimizers import SGD, Adam
+from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import regularizers
 from tensorflow.keras import initializers
-from tensorflow.keras.utils import normalize, to_categorical
 
 __author__ = "Ting-Shuo Yo"
 __copyright__ = "Copyright 2019, DataQualia Lab Co. Ltd."
@@ -247,7 +246,6 @@ def init_resnet_mlc(input_shape, num_filters=32, num_res_blocks=2):
     model = Model(inputs = inputs, outputs = out, name='ResNet')
     # Define compile parameters
     adam = Adam(lr=0.01, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-    #sgd = SGD(lr=0.01, momentum=1e-8, decay=0.001, nesterov=True)#, clipvalue=1.)
     model.compile(loss='binary_crossentropy', optimizer=adam, metrics=['accuracy'])
     encoder = Model(inputs = inputs, outputs = x)
     return((model, encoder))
