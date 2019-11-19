@@ -13,7 +13,7 @@ import tensorflow as tf
 from tensorflow.keras.layers import Input, Dropout, Dense, Flatten, Activation
 from tensorflow.keras.layers import Conv2D, BatchNormalization, MaxPooling2D
 from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.optimizers import SGD, Adam
+from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import regularizers
 from tensorflow.keras import initializers
 from tensorflow.keras.utils import normalize, to_categorical
@@ -212,7 +212,7 @@ def init_model_mlc(input_shape):
     # Initialize model
     model = Model(inputs = inputs, outputs = out)
     # Define compile parameters
-    adam = Adam(lr=0.01, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    adam = Adam(lr=0.01, beta_1=0.9, beta_2=0.999, epsilon=1e-07, decay=0.0)
     model.compile(loss='binary_crossentropy', optimizer=adam, metrics=['accuracy'])
     encoder = Model(inputs = inputs, outputs = x)
     return((model, encoder))
@@ -300,7 +300,7 @@ def main():
     # Output results
     ys.to_csv(args.output+'_mlc_ys.csv', index=False)
     hists.to_csv(args.output+'_mlc_hist.csv')
-    print(cv_report)
+    logging.info(cv_report)
     #cv_report.to_csv(args.output+'_mlc_report.csv')
     # Output model
     model[1].save(args.output+'_encoder.h5')

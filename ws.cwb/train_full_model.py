@@ -13,7 +13,7 @@ import tensorflow as tf
 from tensorflow.keras.layers import Input, Dropout, Dense, Flatten, Activation
 from tensorflow.keras.layers import Conv2D, BatchNormalization, MaxPooling2D
 from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.optimizers import SGD, Adam
+from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import regularizers
 from tensorflow.keras import initializers
 from tensorflow.keras.utils import normalize, to_categorical
@@ -176,43 +176,43 @@ def init_model_mlc(input_shape):
     inputs = Input(shape=input_shape)
     # blovk1: CONV -> MaxPooling
     x = Conv2D(filters=32, kernel_size=(3,3), activation='relu', name='block1_conv1', data_format='channels_last')(inputs)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     x = MaxPooling2D((2,2), name='block1_pool', data_format='channels_last')(x)
     x = Dropout(0.25)(x)
     # block2: CONV -> CONV -> MaxPooling
     x = Conv2D(64, (3,3), activation='relu', name='block2_conv1', data_format='channels_last')(x)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     x = Conv2D(64, (3,3), activation='relu', name='block2_conv2', data_format='channels_last')(x)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     x = MaxPooling2D((2,2), name='block2_pool', data_format='channels_last')(x)
     x = Dropout(0.25)(x)
     # block3: CONV -> CONV -> MaxPooling
     x = Conv2D(128, (3,3), activation='relu', name='block3_conv1', data_format='channels_last')(x)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     x = Conv2D(128, (3,3), activation='relu', name='block3_conv2', data_format='channels_last')(x)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     x = MaxPooling2D((2,2), name='block3_pool', data_format='channels_last')(x)
     x = Dropout(0.25)(x)
     # block4: CONV -> CONV -> MaxPooling
     x = Conv2D(256, (3,3), activation='relu', name='block4_conv1', data_format='channels_last')(x)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     x = Conv2D(256, (3,3), activation='relu', name='block4_conv2', data_format='channels_last')(x)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     x = MaxPooling2D((2,2), name='block4_pool', data_format='channels_last')(x)
     x = Dropout(0.25)(x)
     # Output block: Flatten -> Dense -> Dense -> softmax output
     x = Flatten()(x)
     x = Dense(256, activation='relu', name='fc1')(x)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     x = Dropout(0.5)(x)
     x = Dense(64, activation='relu', name='fc2')(x)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     # Output layer
     out = Dense(5, activation='sigmoid', name='main_output')(x)
     # Initialize model
     model = Model(inputs = inputs, outputs = out)
     # Define compile parameters
-    adam = Adam(lr=0.01, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    adam = Adam(lr=0.01, beta_1=0.9, beta_2=0.999, epsilon=1e-07, decay=0.0)
     model.compile(loss='binary_crossentropy', optimizer=adam, metrics=['accuracy'])
     encoder = Model(inputs = inputs, outputs = x)
     return((model, encoder))
@@ -252,12 +252,11 @@ def main():
     model = init_model_mlc((nY, nX, nLayer))
     logging.debug(model[0].summary())
     # Calculate steps 
-    steps_train = np.ceil(iotrain.shape[0]/args.batch_size)
-    steps_test = np.ceil(iotest.shape[0]/args.batch_size)
-    logging.info("Training data samples: "+str(iotrain.shape[0]))
+    steps_train = np.ceil(iotab.shape[0]/args.batch_size)
+    logging.info("Training data samples: "+str(iotab.shape[0]))
     logging.debug("Training data steps: " + str(steps_train))
     # Fitting model
-    hist = model[0].fit_generator(data_generator_mlc(iotrain, args.batch_size, ylab='prec_cat'), 
+    hist = model[0].fit_generator(data_generator_mlc(iotab, args.batch_size, ylab='prec_cat'), 
                                     steps_per_epoch=steps_train, 
                                     epochs=args.epochs, 
                                     max_queue_size=args.batch_size, 
