@@ -218,25 +218,25 @@ def init_resnet_mlc(input_shape, num_filters=32, num_res_blocks=2):
     # Input layer
     inputs = Input(shape=input_shape)
     # Initial block: CONV -> BN -> relu -> MaxPooling
-    x = Conv2D(num_filters, (7, 7), strides=(1, 1), name='conv1', kernel_initializer=glorot_uniform(seed=0))(inputs)
-    x = BatchNormalization(axis = 3, name = 'bn_conv1')(X)
-    x = Activation('relu')(X)
-    x = MaxPooling2D((3,3))(x)
+    x = Conv2D(16, (3, 3), strides=stride, name='conv1')(inputs)
+    x = BatchNormalization(axis=CHANNEL_AXIS, name='bn_conv1')(x)
+    x = Activation('relu')(x)
+    temp = x
     # Residual sections:
-    x,temp = res_block(x, temp, 32,dropout = 0.2)
-    x,temp = res_block(x, temp, 32,dropout = 0.3)
+    #x,temp = res_block(x, temp, 32,dropout = 0.2)
+    #x,temp = res_block(x, temp, 32,dropout = 0.3)
     x,temp = res_block(x, temp, 32,dropout = 0.4,pooling = True)
-    x,temp = res_block(x, temp, 64,dropout = 0.2)
+    #x,temp = res_block(x, temp, 64,dropout = 0.2)
     x,temp = res_block(x, temp, 64,dropout = 0.2,pooling = True)
     x,temp = res_block(x, temp, 256,dropout = 0.4)
     # Output section: Flatten -> Dense -> Dense -> Dense -> Dense -> softmax output
     x = temp
     x = Flatten()(x)
     x = Dropout(0.4)(x)
-    x = Dense(256, activation = "relu")(x)
-    x = Dropout(0.23)(x)
-    x = Dense(128, activation = "relu")(x)
-    x = Dropout(0.3)(x)
+    #x = Dense(256, activation = "relu")(x)
+    #x = Dropout(0.23)(x)
+    #x = Dense(128, activation = "relu")(x)
+    #x = Dropout(0.3)(x)
     x = Dense(64, activation = "relu")(x)
     x = Dropout(0.2)(x)
     x = Dense(32, activation = "relu")(x)
@@ -296,7 +296,7 @@ def main():
         iotrain = iotab.iloc[idx_trains[i],:]
         iotrain = generate_equal_samples(iotrain, prec_bins=prec_bins, ylab='t1hr', shuffle=True)
         # Initialize model
-        model = init_model_mlc((nLayer, nY, nX))
+        model = init_resnet_mlc((nY, nX, nLayer))
         # Debug info
         if i==0:
             logging.debug(model[0].summary())
