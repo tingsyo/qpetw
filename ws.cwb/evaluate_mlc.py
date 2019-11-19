@@ -4,7 +4,6 @@
 Convolutional Neural Network for Quantitative Precipitation Estimation.
 - This version is based on TensorFlow 2.0
 - QPESUMS input data format: numpy array with shape (275, 162, 6)
-
 """
 import os, csv, logging, argparse,h5py, pickle
 import numpy as np
@@ -33,7 +32,6 @@ __date__ = '2019-10-01'
 nLayer = 6                      # 6 10-min dbz for an hour
 nY = 275                        # y-dimension of dbz data
 nX = 162                        # x-dimension of dbz data
-batchSize = 128                 # Batch size for training / testing
 prec_bins=[0, 0.5, 10, 15, 30, 1000]
 yseg_stat = [0.5, 8, 13, 29]    # 40-year statistics of hourly precipitation of trace, 90%, 95%, and 99% percentile
 yseg = [0.5, 10, 15, 30]        # Actual segmentation for precipitation
@@ -178,37 +176,37 @@ def init_model_mlc(input_shape):
     inputs = Input(shape=input_shape)
     # blovk1: CONV -> MaxPooling
     x = Conv2D(filters=32, kernel_size=(3,3), activation='relu', name='block1_conv1', data_format='channels_last')(inputs)
-    x = BatchNormalization(axis=1)(x)
+    x = BatchNormalization(axis=3)(x)
     x = MaxPooling2D((2,2), name='block1_pool', data_format='channels_last')(x)
     x = Dropout(0.25)(x)
     # block2: CONV -> CONV -> MaxPooling
     x = Conv2D(64, (3,3), activation='relu', name='block2_conv1', data_format='channels_last')(x)
-    x = BatchNormalization(axis=1)(x)
+    x = BatchNormalization(axis=3)(x)
     x = Conv2D(64, (3,3), activation='relu', name='block2_conv2', data_format='channels_last')(x)
-    x = BatchNormalization(axis=1)(x)
+    x = BatchNormalization(axis=3)(x)
     x = MaxPooling2D((2,2), name='block2_pool', data_format='channels_last')(x)
     x = Dropout(0.25)(x)
     # block3: CONV -> CONV -> MaxPooling
     x = Conv2D(128, (3,3), activation='relu', name='block3_conv1', data_format='channels_last')(x)
-    x = BatchNormalization(axis=1)(x)
+    x = BatchNormalization(axis=3)(x)
     x = Conv2D(128, (3,3), activation='relu', name='block3_conv2', data_format='channels_last')(x)
-    x = BatchNormalization(axis=1)(x)
+    x = BatchNormalization(axis=3)(x)
     x = MaxPooling2D((2,2), name='block3_pool', data_format='channels_last')(x)
     x = Dropout(0.25)(x)
     # block4: CONV -> CONV -> MaxPooling
     x = Conv2D(256, (3,3), activation='relu', name='block4_conv1', data_format='channels_last')(x)
-    x = BatchNormalization(axis=1)(x)
+    x = BatchNormalization(axis=3)(x)
     x = Conv2D(256, (3,3), activation='relu', name='block4_conv2', data_format='channels_last')(x)
-    x = BatchNormalization(axis=1)(x)
+    x = BatchNormalization(axis=3)(x)
     x = MaxPooling2D((2,2), name='block4_pool', data_format='channels_last')(x)
     x = Dropout(0.25)(x)
     # Output block: Flatten -> Dense -> Dense -> softmax output
     x = Flatten()(x)
     x = Dense(256, activation='relu', name='fc1')(x)
-    x = BatchNormalization(axis=1)(x)
+    x = BatchNormalization(axis=3)(x)
     x = Dropout(0.5)(x)
     x = Dense(64, activation='relu', name='fc2')(x)
-    x = BatchNormalization(axis=1)(x)
+    x = BatchNormalization(axis=3)(x)
     # Output layer
     out = Dense(5, activation='sigmoid', name='main_output')(x)
     # Initialize model
