@@ -176,37 +176,37 @@ def init_model_mlc(input_shape):
     inputs = Input(shape=input_shape)
     # blovk1: CONV -> MaxPooling
     x = Conv2D(filters=32, kernel_size=(3,3), activation='relu', name='block1_conv1', data_format='channels_last')(inputs)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     x = MaxPooling2D((2,2), name='block1_pool', data_format='channels_last')(x)
     x = Dropout(0.25)(x)
     # block2: CONV -> CONV -> MaxPooling
     x = Conv2D(64, (3,3), activation='relu', name='block2_conv1', data_format='channels_last')(x)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     x = Conv2D(64, (3,3), activation='relu', name='block2_conv2', data_format='channels_last')(x)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     x = MaxPooling2D((2,2), name='block2_pool', data_format='channels_last')(x)
     x = Dropout(0.25)(x)
     # block3: CONV -> CONV -> MaxPooling
     x = Conv2D(128, (3,3), activation='relu', name='block3_conv1', data_format='channels_last')(x)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     x = Conv2D(128, (3,3), activation='relu', name='block3_conv2', data_format='channels_last')(x)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     x = MaxPooling2D((2,2), name='block3_pool', data_format='channels_last')(x)
     x = Dropout(0.25)(x)
     # block4: CONV -> CONV -> MaxPooling
     x = Conv2D(256, (3,3), activation='relu', name='block4_conv1', data_format='channels_last')(x)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     x = Conv2D(256, (3,3), activation='relu', name='block4_conv2', data_format='channels_last')(x)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     x = MaxPooling2D((2,2), name='block4_pool', data_format='channels_last')(x)
     x = Dropout(0.25)(x)
     # Output block: Flatten -> Dense -> Dense -> softmax output
     x = Flatten()(x)
     x = Dense(256, activation='relu', name='fc1')(x)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     x = Dropout(0.5)(x)
     x = Dense(64, activation='relu', name='fc2')(x)
-    x = BatchNormalization(axis=3)(x)
+    x = BatchNormalization(axis=-1)(x)
     # Output layer
     out = Dense(5, activation='sigmoid', name='main_output')(x)
     # Initialize model
@@ -276,7 +276,7 @@ def main():
                                     steps_per_epoch=steps_train, 
                                     epochs=args.epochs, 
                                     max_queue_size=args.batch_size, 
-                                    verbose=0)
+                                    verbose=1)
     # Prediction
     y_pred = model[0].predict_generator(data_generator_mlc(iotest, args.batch_size, ylab='prec_cat'), 
                                     steps=steps_test, 
@@ -284,7 +284,7 @@ def main():
     # Prepare output
     yt = np.array(iotest['prec_cat'])
     yp = onehot_to_category((y_pred>0.5)*1)
-    ys = pd.DataFrame({'date': iotab.date.iloc[idx_tests[i]], 
+    ys = pd.DataFrame({'date': iotest['date'], 
                         'y': yt, 
                         'y_pred': yp, 
                         'y0':y_pred[:,0], 
@@ -300,7 +300,8 @@ def main():
     # Output results
     ys.to_csv(args.output+'_mlc_ys.csv', index=False)
     hists.to_csv(args.output+'_mlc_hist.csv')
-    cv_report.to_csv(args.output+'_mlc_report.csv')
+    print(cv_report)
+    #cv_report.to_csv(args.output+'_mlc_report.csv')
     # Output model
     model[1].save(args.output+'_encoder.h5')
     # done
