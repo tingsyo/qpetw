@@ -246,15 +246,17 @@ def main():
     #-------------------------------
     if not args.random_seed is None:
         tf.random.set_seed(args.random_seed)
+    # Create weighted sampling
+    iotrain = generate_equal_samples(iotab, prec_bins=prec_bins, ylab='t1hr', shuffle=True)
     # Initialize model
     model = init_model_mlc((nY, nX, nLayer))
     logging.debug(model[0].summary())
     # Calculate steps 
-    steps_train = np.ceil(iotab.shape[0]/args.batch_size)
-    logging.info("Training data samples: "+str(iotab.shape[0]))
+    steps_train = np.ceil(iotrain.shape[0]/args.batch_size)
+    logging.info("Training data samples: "+str(iotrain.shape[0]))
     logging.debug("Training data steps: " + str(steps_train))
     # Fitting model
-    hist = model[0].fit_generator(data_generator_mlc(iotab, args.batch_size, ylab='prec_cat'), 
+    hist = model[0].fit_generator(data_generator_mlc(iotrain, args.batch_size, ylab='prec_cat'), 
                                     steps_per_epoch=steps_train, 
                                     epochs=args.epochs, 
                                     max_queue_size=args.batch_size, 
