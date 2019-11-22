@@ -228,6 +228,7 @@ def main():
     parser.add_argument('--epochs', '-e', default=1, type=int, help='number of epochs.')
     parser.add_argument('--logfile', '-l', default='reg.log', help='the log file.')
     parser.add_argument('--random_seed', '-r', default=None, type=int, help='the random seed.')
+    parser.add_argument('--model_file', '-m', default=None, help='pre-trained model file.')
     args = parser.parse_args()
     # Set up logging
     if not args.logfile is None:
@@ -260,8 +261,11 @@ def main():
     iotrain = generate_equal_samples(iotrain, prec_bins=prec_bins, ylab='t1hr', shuffle=True)
     iotest = io2015
     # Initialize model
-    model = init_model_mlc((nY, nX, nLayer))
-    logging.debug(model[0].summary())
+    if not args.model_file is None:
+        model = load_model()
+    else:
+        model, encoder = init_model_mlc((nY, nX, nLayer))
+    logging.debug(model.summary())
     # Calculate steps 
     steps_train = np.ceil(iotrain.shape[0]/args.batch_size)
     steps_test = np.ceil(iotest.shape[0]/args.batch_size)
@@ -270,13 +274,13 @@ def main():
     logging.debug("Training data steps: " + str(steps_train))
     logging.debug("Testing data steps: " + str(steps_test))
     # Fitting model
-    hist = model[0].fit_generator(data_generator_mlc(iotrain, args.batch_size, ylab='prec_cat'), 
+    hist = model.fit_generator(data_generator_mlc(iotrain, args.batch_size, ylab='prec_cat'), 
                                     steps_per_epoch=steps_train, 
                                     epochs=args.epochs, 
                                     max_queue_size=args.batch_size, 
                                     verbose=1)
     # Prediction
-    y_pred = model[0].predict_generator(data_generator_mlc(iotest, args.batch_size, ylab='prec_cat'), 
+    y_pred = model.predict_generator(data_generator_mlc(iotest, args.batch_size, ylab='prec_cat'), 
                                     steps=steps_test, 
                                     verbose=0)
     # Prepare output
