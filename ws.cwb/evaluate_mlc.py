@@ -251,19 +251,22 @@ def main():
     # Create Training/Testing split
     #-------------------------------
     io201314 = iotab.loc[(iotab['date'].astype(int) < 2015010100),:]
-    io2015 = iotab.loc[(iotab['date'].astype(int) >= 2015010100) & (iotab['date'].astype(int) < 2016010100), :]
-    io2016 = iotab.loc[(iotab['date'].astype(int) >= 2016010100), :]
+    io201516 = iotab.loc[(iotab['date'].astype(int) >= 2015010100),:]
+    #io2015 = iotab.loc[(iotab['date'].astype(int) >= 2015010100) & (iotab['date'].astype(int) < 2016010100), :]
+    #io2016 = iotab.loc[(iotab['date'].astype(int) >= 2016010100), :]
     #-------------------------------
     # Train and evaluate
     #-------------------------------
     # Create weighted sampling for training data
     iotrain = io201314
     iotrain = generate_equal_samples(iotrain, prec_bins=prec_bins, ylab='t1hr', shuffle=True)
-    iotest = io2015
+    iotest = io201516
     # Initialize model
     if not args.model_file is None:
-        model = load_model()
+        logging.info('Load pre-trained model from '+args.model_file)
+        model = load_model(args.model_file)
     else:
+        logging.info('Initialize a new mdoel.')
         model, encoder = init_model_mlc((nY, nX, nLayer))
     logging.debug(model.summary())
     # Calculate steps 
