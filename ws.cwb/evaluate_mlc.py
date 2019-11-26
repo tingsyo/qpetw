@@ -251,8 +251,8 @@ def main():
     # Create Training/Testing split
     #-------------------------------
     io201314 = iotab.loc[(iotab['date'].astype(int) < 2015010100),:]
-    io201516 = iotab.loc[(iotab['date'].astype(int) >= 2015010100),:]
-    #io2015 = iotab.loc[(iotab['date'].astype(int) >= 2015010100) & (iotab['date'].astype(int) < 2016010100), :]
+    #io201516 = iotab.loc[(iotab['date'].astype(int) >= 2015010100),:]
+    io2015 = iotab.loc[(iotab['date'].astype(int) >= 2015010100) & (iotab['date'].astype(int) < 2016010100), :]
     #io2016 = iotab.loc[(iotab['date'].astype(int) >= 2016010100), :]
     #-------------------------------
     # Train and evaluate
@@ -260,7 +260,7 @@ def main():
     # Create weighted sampling for training data
     iotrain = io201314
     iotrain = generate_equal_samples(iotrain, prec_bins=prec_bins, ylab='t1hr', shuffle=True)
-    iotest = io201516
+    iotest = io2015
     # Initialize model
     if not args.model_file is None:
         logging.info('Load pre-trained model from '+args.model_file)
