@@ -89,7 +89,7 @@ def main():
     finfo = loadInput(args.rawx)
     # Load pre-trained model
     encoder = load_model(args.encoder)
-    logging.debug(model[0].summary())
+    logging.debug(encoder.summary())
     # Encode data with encoder
     encode_qpesums(encoder, finfo, args.output)
     # done
