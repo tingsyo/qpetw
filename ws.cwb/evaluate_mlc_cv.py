@@ -269,7 +269,7 @@ def main():
     #-------------------------------
     # Create Cross Validation splits
     #-------------------------------
-    idx_trains, idx_tests = create_CV_splits(iotab, k=args.kfold, ysegs=prec_bins[1:-1], ylab='t1hr', shuffle=False)
+    idx_trains, idx_tests = create_CV_splits(iotab, k=5, ysegs=prec_bins[1:-1], ylab='t1hr', shuffle=False)
     #-------------------------------
     # Run through CV
     #-------------------------------
@@ -287,10 +287,9 @@ def main():
         else:
             logging.info('Initialize a new mdoel.')
             model, encoder = init_model_mlc((nY, nX, nLayer))
-        logging.debug(model.summary())
         # Debug info
         if i==0:
-            logging.debug(model[0].summary())
+            logging.info(model.summary())
         logging.info("Training data samples: "+str(iotrain.shape[0]))
         steps_train = np.ceil(iotrain.shape[0]/args.batch_size)
         logging.debug("Training data steps: " + str(steps_train))
@@ -298,14 +297,28 @@ def main():
         steps_test = np.ceil(len(idx_tests[i])/args.batch_size)
         logging.debug("Testing data steps: " + str(steps_test))
         # Fitting model
-        hist = model[0].fit_generator(data_generator_mlc(iotrain, args.batch_size, ylab='prec_cat'), steps_per_epoch=steps_train, epochs=args.epochs, max_queue_size=args.batch_size, verbose=0)
+        hist = model.fit_generator(data_generator_mlc(iotrain, args.batch_size, ylab='prec_cat'), 
+                                    steps_per_epoch=steps_train, 
+                                    epochs=args.epochs, 
+                                    max_queue_size=args.batch_size, 
+                                    verbose=0)
         # Prediction
-        y_pred = model[0].predict_generator(data_generator_mlc(iotab.iloc[idx_tests[i],:], args.batch_size, ylab='prec_cat'), steps=steps_test, verbose=0)
+        y_pred = model.predict_generator(data_generator_mlc(iotab.iloc[idx_tests[i],:], 
+                                                            args.batch_size, 
+                                                            ylab='prec_cat'), 
+                                    steps=steps_test, 
+                                    verbose=0)
         # Prepare output
         yt = np.array(iotab['prec_cat'])[idx_tests[i]]
         yp = onehot_to_category((y_pred>0.5)*1)
-        ys.append(pd.DataFrame({'date': iotab.date.iloc[idx_tests[i]], 'y': yt, 'y_pred': yp, 
-            'y0':y_pred[:,0], 'y1':y_pred[:,1], 'y2':y_pred[:,2], 'y3':y_pred[:,3], 'y4':y_pred[:,4]}))
+        ys.append(pd.DataFrame({'date': iotab.date.iloc[idx_tests[i]], 
+                                'y': yt, 
+                                'y_pred': yp, 
+                                'y0':y_pred[:,0], 
+                                'y1':y_pred[:,1], 
+                                'y2':y_pred[:,2], 
+                                'y3':y_pred[:,3], 
+                                'y4':y_pred[:,4]}))
         hists.append(pd.DataFrame(hist.history)) 
         cv_report.append(report_evaluation(yt, yp))
         # Debug info
