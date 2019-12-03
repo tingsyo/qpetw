@@ -6,7 +6,7 @@ This script reads in the QPESUMS data in *.npy, parse its timstamp, and convert 
 import os, logging, argparse, datetime, shutil
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+from cwbqpe import *
 #-----------------------------------------------------------------------
 __author__ = "Ting-Shuo Yo"
 __copyright__ = "Copyright 2017~2019, DataQualia Lab Co. Ltd."
@@ -18,6 +18,17 @@ __email__ = "tingyo@dataqualia.com"
 __status__ = "development"
 __date__ = '2019-01-09'
 #-----------------------------------------------------------------------
+# Parameters: 45 station ids in TPE
+STID_TPE45 = ['466880', '466910', '466920', '466930', '466940', 
+              'C0A520', 'C0A530', 'C0A540', 'C0A550', 'C0A560', 
+              'C0A570', 'C0A580', 'C0A640', 'C0A650', 'C0A660', 
+              'C0A710', 'C0A860', 'C0A870', 'C0A880', 'C0A890', 
+              'C0A920', 'C0A940', 'C0A950', 'C0A970', 'C0A980', 
+              'C0A9A0', 'C0A9B0', 'C0A9C0', 'C0A9E0', 'C0A9F0', 
+              'C0A9G0', 'C0A9I1', 'C0AC40', 'C0AC60', 'C0AC70', 
+              'C0AC80', 'C0ACA0', 'C0AD00', 'C0AD10', 'C0AD20', 
+              'C0AD30', 'C0AD40', 'C0AD50', 'C0AG90', 'C0AH00']
+#
 def search_qpesums_npy(srcdir):
     '''Scan QPESUMS data in *.npy format (6*275*162) from the specified directory.
     '''
@@ -68,152 +79,33 @@ def correct_qpesums_files(finfo, outdir):
         shutil.copy(rec['furi'], newuri)
     return(0)
 
+def create_station_list(stinfo_uri, stid):
+    stlist = pd.read_csv(stinfo_uri)
+    stlist = stlist.loc[stlist['id'].isin(stid),:].reset_index(drop=True)
+    return(stlist)
 
-class cwbqpe:
-    '''Class for processing CWB pre-QC QPE data.'''
-    def __init__(self, file=None, data=None):
-        self.uri = file
-        self.header = None
-        self.data = data
-        
-    def help(self):
-        print("This toolset provides functions accessing CWB QPESUMS data. \nThe data is 494972 bytes binary stored in gzip format. The first 170 bytes is the header, and the latter part is the QPE results on a (441x561) surface.\n")
-    
-    def load_data(self, file=None):
-        import os, gzip, struct
-        import numpy as np
-        # Check data file
-        if (self.uri is None):
-            if (file is None) or (not os.path.isfile(file)):
-                print('[Error] The data file is not specified or does not exist.')
-                return(None)
-            else:
-                self.uri = file
-        # Load data
-        with gzip.open(self.uri, 'rb') as f:
-            raw = f.read()
-        # Parse header
-        self.header = self.parse_header(raw[:170])
-        self.data = np.array(struct.unpack('247401h', raw[170:])).reshape(self.header['ny'], self.header['nx'])
-        return(0)
-    
-    def parse_header(self, raw):
-        import struct
-        header = {}
-        # Time information
-        header['year'] = struct.unpack('i', raw[:4])[0]
-        header['month'] = struct.unpack('i', raw[4:8])[0]
-        header['day'] = struct.unpack('i', raw[8:12])[0]
-        header['hour'] = struct.unpack('i', raw[12:16])[0]
-        header['minute'] = struct.unpack('i', raw[16:20])[0]
-        header['second'] = struct.unpack('i', raw[20:24])[0]
-        # Data dimension
-        header['nx'] = struct.unpack('i', raw[24:28])[0]
-        header['ny'] = struct.unpack('i', raw[28:32])[0]
-        header['nz'] = struct.unpack('i', raw[32:36])[0]
-        # Projection and lat/lon
-        header['proj'] = struct.unpack('4s', raw[36:40])[0].decode('ISO-8859-1')
-        header['map_scale'] = struct.unpack('i', raw[40:44])[0]
-        header['projlat1'] = struct.unpack('i', raw[44:48])[0]
-        header['projlat2'] = struct.unpack('i', raw[48:52])[0]
-        header['projlon'] = struct.unpack('i', raw[52:56])[0]
-        header['alon'] = struct.unpack('i', raw[56:60])[0]
-        header['alat'] = struct.unpack('i', raw[60:64])[0]
-        # Delta in x-y-z
-        header['pxy_scale'] = struct.unpack('i', raw[64:68])[0]
-        header['dx'] = struct.unpack('i', raw[68:72])[0]
-        header['dy'] = struct.unpack('i', raw[72:76])[0]
-        header['dxy_scale'] = struct.unpack('i', raw[76:80])[0]
-        header['zht'] = struct.unpack('i', raw[80:84])[0]
-        header['z_scale'] = struct.unpack('i', raw[84:88])[0]
-        header['i_bb_mode'] = struct.unpack('i', raw[88:92])[0]
-        # Quality information
-        unkn01,unkn02,unkn03,unkn04,unkn05,unkn06,unkn07,unkn08,unkn09 = struct.unpack('iiiiiiiii', raw[92:128])
-        # Variable information
-        header['varname'] = struct.unpack('20s', raw[128:148])[0].decode('ISO-8859-1')
-        header['varunit'] = struct.unpack('6s', raw[148:154])[0].decode('ISO-8859-1')
-        header['var_scale'] = struct.unpack('i', raw[154:158])[0]
-        header['missing'] = struct.unpack('i', raw[158:162])[0]
-        header['nradar'] = struct.unpack('i', raw[162:166])[0]
-        header['mosradar'] = struct.unpack('4s', raw[166:170])[0].decode('ISO-8859-1')
-        #
-        return(header)
+def parse_qpe_filename(furi):
+    ts = ''.join(furi.split('.')[1:3])
+    return(ts)
 
-    def find_nearest_value(self, lon, lat):
-        ''' Find the closest point in the dataset to the specified lon/lat.'''
-        import numpy as np
-        # Check data file
-        if (self.header is None):
-            print('[Error] The object has not yet been initialized.')
-            return(None)
-        # Derive the coordinate of the data object
-        lon0 = self.header['alon']/self.header['map_scale']
-        lat1 = self.header['alat']/self.header['map_scale']
-        dx = self.header['dx']/self.header['dxy_scale']
-        dy = self.header['dy']/self.header['dxy_scale']
-        lon1 = lon0 + (self.header['nx']-1)*dx
-        lat0 = lat1 - (self.header['ny']-1)*dy
-        lons = np.linspace(lon0, lon1, self.header['nx'])
-        lats = np.linspace(lat0, lat1, self.header['ny'])
-        # Check boundaries
-        if (lon<lon0) or (lon>lon1) or (lat<lat0) or (lat>lat1):
-            print("Specified lon/lat is outside of the data boundary: "+
-                  str(lon0)+"~"+str(lon1)+", "+str(lat0)+"~"+str(lat1))
-            return(None)
-        # Find neighbors
-        ilonr = np.where(lons>lon)[0][0]
-        ilonl = np.where(lons<=lon)[0][-1]
-        ilatu = np.where(lats>lat)[0][0]
-        ilatd = np.where(lats<=lat)[0][-1]
-        # Determin the closest point
-        if (lon - lons[ilonl]) <= (lons[ilonr] - lon):
-            ilon = ilonl
-        else:
-            ilon = ilonr
-        if (lat - lats[ilatd]) <= (lats[ilatu] - lat):
-            ilat = ilatd
-        else:
-            ilat = ilatu
-        #
-        return((lons[ilon], lats[ilat], self.data[ilat,ilon]))
+def retrieve_qpe(srcdir, stlist):
+    # Scan source files
 
-    def find_interpolated_value(self, lon, lat):
-        ''' Find the closest points and interpolate to the specified lon/lat.'''
-        import numpy as np
-        # Check data file
-        if (self.header is None):
-            print('[Error] The object has not yet been initialized.')
-            return(None)
-        # Derive the coordinate of the data object
-        lon0 = self.header['alon']/self.header['map_scale']
-        lat1 = self.header['alat']/self.header['map_scale']
-        dx = self.header['dx']/self.header['dxy_scale']
-        dy = self.header['dy']/self.header['dxy_scale']
-        lon1 = lon0 + (self.header['nx']-1)*dx
-        lat0 = lat1 - (self.header['ny']-1)*dy
-        lons = np.linspace(lon0, lon1, self.header['nx'])
-        lats = np.linspace(lat0, lat1, self.header['ny'])
-        # Check boundaries
-        if (lon<lon0) or (lon>lon1) or (lat<lat0) or (lat>lat1):
-            print("Specified lon/lat is outside of the data boundary: "+
-                  str(lon0)+"~"+str(lon1)+", "+str(lat0)+"~"+str(lat1))
-            return(None)
-        # Find neighbors
-        ilonr = np.where(lons>lon)[0][0]
-        ilonl = np.where(lons<=lon)[0][-1]
-        ilatu = np.where(lats>lat)[0][0]
-        ilatd = np.where(lats<=lat)[0][-1]
-        # Interpolate
-        def bilinear_interpolation(x, y, x1, x2, y1, y2, z):
-            '''Bilinear interpolation, ref:https://en.wikipedia.org/wiki/Bilinear_interpolation'''
-            A = np.array([[1,x1,y1,x1*y1],[1,x1,y2,x1*y2],[1,x2,y1,x2*y1],[1,x2,y2,x2*y2]])
-            a = np.linalg.solve(A,z)
-            fxy = a[0] + a[1]*x + a[2]*y + a[3]*x*y
-            return(fxy)
-        #
-        neighbours = [self.data[ilatd,ilonl], self.data[ilatu,ilonl], self.data[ilatd,ilonr], self.data[ilatu,ilonr]]
-        value = bilinear_interpolation(lon, lat, lons[ilonl], lons[ilonr], lats[ilatd], lats[ilatu], neighbours)
-        return(value)
+    # Loop through source files
+    results = []
+    for f in flist:
+        timestamp = parse_qpe_filename(f)   # Parse file name for time-stamp
+        cq = cwbqpe(f)                      # Load data
+        cq.load_data()
+        tmp = {}
+        for i in range(stlist.shape[0]):    # Loop through stations
+            sta = stlist.iloc[i,:]
+            qval = cq.find_interpolated_value(sta['lon'], sta['lat'])
+            tmp[sta['id']] = qval
+        results.append(tmp)
+    #
+    return(pd.DataFrame(results))
+
 
 #-----------------------------------------------------------------------
 def main():
@@ -235,8 +127,7 @@ def main():
     # Configure Argument Parser
     parser = argparse.ArgumentParser(description='Retrieve DBZ data for further processing.')
     parser.add_argument('--input', '-i', help='the directory containing all CWB_pre_QC_QPE data.')
-    parser.add_argument('--output', '-o', default='output', help='the output directory.')
-    parser.add_argument('--precipitation_tpe', '-p', help='the directory containing all station precipitation data.')
+    parser.add_argument('--output', '-o', default='output', help='the output file.')
     parser.add_argument('--station_list', '-s', help='the file containing all weather station information.')
     parser.add_argument('--logfile', '-l', default=None, help='the log file.')
     args = parser.parse_args()
@@ -245,12 +136,12 @@ def main():
         logging.basicConfig(level=logging.DEBUG, filename=args.logfile, filemode='w')
     else:
         logging.basicConfig(level=logging.DEBUG)
-    # Scan files for reading
-    finfo = search_qpesums_npy(args.input)
-    # Create LST timestamp
-    finfo['lst'] = covert_utc_to_lst(finfo.timestamp)
-    # Generate output
-    correct_qpesums_files(finfo, args.output)
+    # 1. Create station list
+    station_list = create_station_list(args.station_list, STID_TPE45)
+    # 2. Scan cwbqpe data
+    qpe_results = retrieve_qpe(args.input, station_list)
+    # Output results
+    qpe_results.to_csv(args.output, index=False)
     # done
     return(0)
 
