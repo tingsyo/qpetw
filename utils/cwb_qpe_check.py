@@ -29,73 +29,48 @@ STID_TPE45 = ['466880', '466910', '466920', '466930', '466940',
               'C0AC80', 'C0ACA0', 'C0AD00', 'C0AD10', 'C0AD20', 
               'C0AD30', 'C0AD40', 'C0AD50', 'C0AG90', 'C0AH00']
 #
-def search_qpesums_npy(srcdir):
-    '''Scan QPESUMS data in *.npy format (6*275*162) from the specified directory.
+def search_cwbqpe_gz(srcdir, prefix='PCP_1H_RAD', ext='gz'):
+    '''Scan specified directory for CWB pre-QC QPE data in *.gz format.
+       In addition to list all URIs, this function also pasrses the filename for timestamp,
+       and convert the timestamp from UTC to LST(UTC+8).
     '''
     import pandas as pd
     fileinfo = []
     for subdir, dirs, files in os.walk(srcdir, followlinks=True):
         for f in files:
-            if f.endswith('.npy'):
-                # Parse file name for time information
-                furi = os.path.join(subdir, f)
-                finfo = f.split('.')
-                ftime = finfo[0]
-                #logging.debug([furi] + finfo[1:3])
-                fileinfo.append([furi, ftime])
-    results = pd.DataFrame(fileinfo, columns=['furi', 'timestamp'])
+            if f.endswith('.gz'):                                   # Only work on 'gz' files
+                furi = os.path.join(subdir, f)                      # Complete URI
+                ftime = ''.join(f.split('.')[1:3])                  # time-stamp in YYYYmmddHHMM
+                fileinfo.append({'furi':furi, 'timestamp':ftime})
+    results = pd.DataFrame(fileinfo)
     results = results.sort_values(by=['timestamp']).reset_index(drop=True)
+    results['lst'] = convert_utc_to_lst(results['timestamp'], time_zone=8)
     return(results)
 
-def correct_qpesums_datetime(ts):
-    '''Check the time-stamp string in the form of YYYY-mm-dd-HH:
-         - if HH = 24, increment the dd by one and change HH to 00
-    '''
-    import datetime
-    if ts[8:] == '24':
-        oldt = datetime.datetime.strptime(ts[:8], '%Y%m%d')
-        newt = oldt + datetime.timedelta(days=1)
-    else:
-        newt = datetime.datetime.strptime(ts, '%Y%m%d%H')
-    return(newt)
-
-def covert_utc_to_lst(tslist, time_zone=8):
-    '''Convert a list of timestamps to the specified time zone (+8 by default).
-    '''
+def convert_utc_to_lst(tslist, time_zone=8):
+    '''Convert a list of timestamps to the specified time zone (+8 by default).'''
     lst_list = []
     for t in tslist:
-        t_utc = correct_qpesums_datetime(t)                     # Correct hour naming
-        t_lst = t_utc + datetime.timedelta(hours=time_zone)     # Shift time zone
-        lst_list.append(t_lst.strftime('%Y%m%d%H'))             # Convert to string
+        t_utc = datetime.datetime.strptime(t,'%Y%m%d%H%M')      # Convert timestamp string yo datetime object
+        t_lst = t_utc + datetime.timedelta(hours=time_zone)     # Change timezone
+        lst_list.append(t_lst.strftime('%Y%m%d%H%M'))           # Convert datetime back to string
     return(lst_list)
 
-def correct_qpesums_files(finfo, outdir):
-    '''Copy the original QPESUMS data to the new directory with the corresponding timestamp in LST.
-    '''
-    for i in range(finfo.shape[0]):
-        rec = finfo.iloc[i,:]
-        newuri = os.path.join(outdir, rec['lst']+'.npy')
-        logging.debug("Copying " + rec['furi'] + ' to ' + newuri)
-        shutil.copy(rec['furi'], newuri)
-    return(0)
-
 def create_station_list(stinfo_uri, stid):
+    '''Read in CWB station information and filter with selected IDs'''
     stlist = pd.read_csv(stinfo_uri)
     stlist = stlist.loc[stlist['id'].isin(stid),:].reset_index(drop=True)
     return(stlist)
 
-def parse_qpe_filename(furi):
-    ts = ''.join(furi.split('.')[1:3])
-    return(ts)
-
-def retrieve_qpe(srcdir, stlist):
+def retrieve_cwbqpe(srcdir, stlist):
+    '''Scan all CWB-QPE-pre-QC data, and retrieve precipitation of specified stations.'''
     # Scan source files
-
+    srcinfo = search_cwbqpe_gz(srcdir)
     # Loop through source files
     results = []
-    for f in flist:
-        timestamp = parse_qpe_filename(f)   # Parse file name for time-stamp
-        cq = cwbqpe(f)                      # Load data
+    for i in range(srcinfo.shape[0]):
+        timestamp = srcinfo['lst'].iloc[i]      # Retrieve timestamp in LST
+        cq = cwbqpe(srcinfo['furi'].iloc[i])    # Load data
         cq.load_data()
         tmp = {}
         for i in range(stlist.shape[0]):    # Loop through stations
@@ -106,23 +81,22 @@ def retrieve_qpe(srcdir, stlist):
     #
     return(pd.DataFrame(results))
 
-
 #-----------------------------------------------------------------------
 def main():
     '''
-  1. Create station list
-    - Scan *.csv files in precipitation.tpe for IDs
-    - Read station list (lon/lat/lev...)
-    - Intersect IDs and station_list
-  2. Scan cwbqpe data
-    - Scan for all available CWB_QPE data -> cqlist
-    - Loop through cqlist
-      - load binary
-      - Convert time-stamp to LST
-      - get values of each station
-      - Save as table: timestamp-by-station_id
-  3. Validation
-    - Verify the derived QPE results with precipitation.tpe/*.csv
+      1. Create station list
+        - Scan *.csv files in precipitation.tpe for IDs
+        - Read station list (lon/lat/lev...)
+        - Intersect IDs and station_list
+      2. Scan cwbqpe data
+        - Scan for all available CWB_QPE data -> cqlist
+        - Loop through cqlist
+          - load binary
+          - Convert time-stamp to LST
+          - get values of each station
+          - Save as table: timestamp-by-station_id
+      3. Validation
+        - Verify the derived QPE results with precipitation.tpe/*.csv
     '''
     # Configure Argument Parser
     parser = argparse.ArgumentParser(description='Retrieve DBZ data for further processing.')
@@ -139,7 +113,7 @@ def main():
     # 1. Create station list
     station_list = create_station_list(args.station_list, STID_TPE45)
     # 2. Scan cwbqpe data
-    qpe_results = retrieve_qpe(args.input, station_list)
+    qpe_results = retrieve_cwbqpe(args.input, station_list)
     # Output results
     qpe_results.to_csv(args.output, index=False)
     # done
