@@ -11,6 +11,8 @@ class cwbqpe:
         print("This toolset provides functions accessing CWB QPESUMS data. \nThe data is 494972 bytes binary stored in gzip format. The first 170 bytes is the header, and the latter part is the QPE results on a (441x561) surface.\n")
     
     def load_data(self, file=None):
+        import os, gzip, struct
+        import numpy as np
         # Check data file
         if (self.uri is None):
             if (file is None) or (not os.path.isfile(file)):
@@ -29,6 +31,7 @@ class cwbqpe:
         return(0)
     
     def parse_header(self, raw):
+        import os, gzip, struct
         header = {}
         # Time information
         header['year'] = struct.unpack('i', raw[:4])[0]
@@ -70,6 +73,8 @@ class cwbqpe:
         return(header)
 
     def find_nearest_value(self, lon, lat):
+        import os, gzip, struct
+        import numpy as np
         ''' Find the closest point in the dataset to the specified lon/lat.'''
         # Check data file
         if (self.header is None):
@@ -107,6 +112,8 @@ class cwbqpe:
         return((lons[ilon], lats[ilat], self.data[ilat,ilon]))
 
     def find_interpolated_value(self, lon, lat):
+        import os, gzip, struct
+        import numpy as np
         ''' Find the closest points and interpolate to the specified lon/lat.'''
         # Check data file
         if (self.header is None):

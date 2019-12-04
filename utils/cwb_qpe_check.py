@@ -3,7 +3,7 @@
 """
 This script reads in the QPESUMS data in *.npy, parse its timstamp, and convert UTC to LST (UTC+8).
 """
-import os, logging, argparse, datetime, shutil
+import os, logging, argparse, datetime, struct
 import numpy as np
 import pandas as pd
 from cwbqpe import *
@@ -71,12 +71,17 @@ def retrieve_cwbqpe(srcdir, stlist):
     for i in range(srcinfo.shape[0]):
         timestamp = srcinfo['lst'].iloc[i]      # Retrieve timestamp in LST
         cq = cwbqpe(srcinfo['furi'].iloc[i])    # Load data
-        cq.load_data()
-        tmp = {}
+        try:
+            cq.load_data()
+        except struct.error:
+            logging.error('Errors encountered while loading data from '+srcinfo['furi'].iloc[i])
+            continue
+        tmp ={'timestamp':timestamp}
         for i in range(stlist.shape[0]):    # Loop through stations
             sta = stlist.iloc[i,:]
             qval = cq.find_interpolated_value(sta['lon'], sta['lat'])
             tmp[sta['id']] = qval
+        logging.debug(tmp['timestamp'])
         results.append(tmp)
     #
     return(pd.DataFrame(results))
