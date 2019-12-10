@@ -45,7 +45,7 @@ def report_prediction(y_pred, timestamp):
     results = []
     for y in y_pred:
         yc = onehot_to_category((y>0.5)*1)
-        tmp = {'date': timestamp, 
+        tmp = {'input': timestamp, 
                'y0':y[0], 
                'y1':y[1], 
                'y2':y[2], 
@@ -94,8 +94,8 @@ def main():
     logging.info('Performing prediction ')
     y_pred = model.predict(np.expand_dims(x, axis=0), verbose=1)
     print(y_pred)
-    y = report_prediction(y_pred, args.input.replace('.npy',''))
-    print(y)
+    y = report_prediction(y_pred, args.input)
+    y.to_csv(args.output, index=False)
     # done
     return(0)
     
