@@ -73,7 +73,7 @@ def aggregate_qpesums_data(current_time, data_info, time_shift=0):
     rec = {'timestamp': current_time.strftime("%Y%m%d.%H")}
     fcount = 0
     tslist = []
-    for i in range(7,1,-1):
+    for i in range(6,0,-1):
         ts = (current_time-timedelta(minutes=(i*10))).strftime("%Y%m%d.%H%M")
         # Check availability of required time-stamps
         rec['m-'+str((i-1)*10)] = (ts in data_info.timestamp.values)*1
@@ -86,6 +86,7 @@ def aggregate_qpesums_data(current_time, data_info, time_shift=0):
         logging.debug('Aggregate data for '+current_time.strftime("%Y%m%d.%H"))
         qdata = []
         for ts in tslist:
+            logging.debug('....reading data for '+ts)
             tmp = read_qpesums_text(data_info.loc[data_info.timestamp==ts, 'furi'].iloc[0])
             # Break if the given hour has missing data
             if tmp is None:
@@ -94,6 +95,8 @@ def aggregate_qpesums_data(current_time, data_info, time_shift=0):
                 break
             qdata.append(tmp)
         qdata =  np.stack(qdata, axis=2)
+    else:
+        logging.error('Data missing for '+current_time.strftime("%Y%m%d.%H"))
     # Shift time if necessary
     if time_shift !=0:
         rec['timestamp'] = (current_time+timedelta(hours=time_shift)).strftime("%Y%m%d.%H")
@@ -107,16 +110,19 @@ def merge_10min_to_hourly(data_info, outdir, time_shift=0):
     # Set up the start-time and end-time
     starttime = parse_time_string(data_info.timestamp.iloc[0])
     endtime = parse_time_string(data_info.timestamp.iloc[-1])
+    logging.info('Aggregate QPESUMS data from '+starttime.strftime("%Y%m%d.%H%M")+' to '+endtime.strftime("%Y%m%d.%H%M"))
     # Loop through time-stamps by hour
     dclist = []
-    ctime = starttime
-    while ctime <= endtime:
+    ctime = starttime+timedelta(hours=1)
+    while ctime <= (endtime+timedelta(hours=1)):
         check, data = aggregate_qpesums_data(ctime, data_info, time_shift=time_shift)
         dclist.append(check)
         # Output the aggregated data to the outdir
         if not data is None:
             ofname = outdir + '/' + check['timestamp'].replace('.','') + '.npy'
             np.save(ofname, data)
+        else:
+            logging.error('Data is empty at '+check['timestamp'])
         # Move forward by one hour
         ctime += timedelta(hours=1)
     #
