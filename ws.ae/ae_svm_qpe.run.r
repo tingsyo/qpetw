@@ -62,9 +62,9 @@ require(caret)
 require(kernlab)
 require(parallel)
 # Set up multi-core
-library(doParallel)
-cluster <- makeCluster(detectCores() - 2) # convention to leave 1 core for OS
-registerDoParallel(cluster)
+#library(doParallel)
+#cluster <- makeCluster(12, outfile='aesvm.par.log') # convention to leave 8 core for OS
+#registerDoParallel(cluster)
 # Collect results
 cmsByModels <- NULL
 mod.glm <- NULL
@@ -77,6 +77,7 @@ for(i in 1:nstation){
   # Combine IO
   tmp <- data.frame('date'=y.1316[[i]]$date,'y'=(y.1316[[i]]$t1hr>=40.)*1) # 1:>=40mm/hr
   iodata <- merge(tmp, input.1316, by.x="date", by.y=0)
+  iodata$y <- factor(iodata$y)
   # Clean up NA and move date to row.names
   print("Cleaning up data...")
   row.names(iodata) <- iodata$date
@@ -104,7 +105,7 @@ for(i in 1:nstation){
               "svm"=confusionMatrix.train(fit.svm)$table)
   # Save model
   mod.glm <- c(mod.glm, list(fit.glm$finalModel))
-  mod.svm <- c(mod.svm, list(fit.svmr$finalModel))
+  mod.svm <- c(mod.svm, list(fit.svm$finalModel))
   cmsByModels <- c(cmsByModels, list(cms))
 }
 names(cmsByModels) <- names(y.1316)
@@ -113,11 +114,11 @@ names(mod.svm) <- names(y.1316)
 # Clean up
 rm(i, iodata, cvOut, cvIn, trctrl, fit.glm, fit.svm)
 # Stop parallel
-stopCluster(cluster)
-registerDoSEQ()
+#stopCluster(cluster)
+#registerDoSEQ()
 # Save
-save(results.glm, results.svm, ys, file="qpe1316_ae_svm.results.RData")
-save(mod.glm, mod.svm, ys, file="qpe1316_ae_svm.mod.RData")
+save(cmsByModels, file="qpe1316_ae_svm.results.RData")
+save(mod.svm, file="qpe1316_ae_svm.mod.RData")
 
 
 
