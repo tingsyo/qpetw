@@ -114,6 +114,7 @@ def merge_10min_to_hourly(data_info, outdir, time_shift=0):
     # Loop through time-stamps by hour
     dclist = []
     ctime = starttime+timedelta(hours=1)
+    ctime = ctime.replace(minute=0, second=0, microsecond=0)
     while ctime <= (endtime+timedelta(hours=1)):
         check, data = aggregate_qpesums_data(ctime, data_info, time_shift=time_shift)
         dclist.append(check)

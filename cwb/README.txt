@@ -5,10 +5,10 @@
 1. 將程式資料夾複製到欲執行工作的主機上
 2. 確認主機上已安裝：
   - python 3.6 以上
-  - numpoy
+  - numpy
   - pandas
   - h5py
-  - tensorflow (or tensorflow-gpu)
+  - tensorflow 2.0 以上 (or tensorflow-gpu)
 
 
 ## 2. 程式結構
