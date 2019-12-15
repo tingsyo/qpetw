@@ -40,12 +40,12 @@ nX = 162                        # x-dimension of dbz data
 # Functions
 #-----------------------------------------------------------------------
 # Function to give report
-def report_prediction(y_pred, timestamp):
+def report_prediction(y_pred, stid):
     import sklearn.metrics as metrics
     results = []
     for y in y_pred:
         yc = onehot_to_category((y>0.5)*1)
-        tmp = {'input': timestamp, 
+        tmp = {'id': stid, 
                'y0':y[0], 
                'y1':y[1], 
                'y2':y[2], 
@@ -65,9 +65,9 @@ def main():
     # Configure Argument Parser
     parser = argparse.ArgumentParser(description='Perfrom QPE with preprocessed QPESUMS data and pre-trained model.')
     parser.add_argument('--input', '-i', help='the file containing preprocessed QPESUMS data.')
-    parser.add_argument('--output', '-o', help='the file to store training history.')
-    parser.add_argument('--model_file', '-m', default=None, help='prefix of the pre-trained model files.')
-    parser.add_argument('--logfile', '-l', default='reg.log', help='the log file.')
+    parser.add_argument('--output', '-o', default='qpe.csv', help='the file to store training history.')
+    parser.add_argument('--model_dir', '-m', default='model/', help='the folder containing pre-trained model files.')
+    parser.add_argument('--logfile', '-l', default='cwb_qpesums.log', help='the log file.')
     args = parser.parse_args()
     # Set up logging
     if not args.logfile is None:
@@ -83,18 +83,24 @@ def main():
     #-------------------------------
     # Load pre-trained model
     #-------------------------------
-    logging.info('Loading pre-trained model from '+args.model_file)
-    with open(args.model_file+'_model.json') as f:
-        model = model_from_json(f.read())
-    model.load_weights(args.model_file+'_weights.h5')
-    #model.summary()
+    logging.info('Loading pre-trained models from '+args.model_dir)
+    mod_prefix = ['TPEALL','466880','466910','466920','466930','466940']
+    predictions = []
+    for p in mod_prefix:
+        logging.info('Model '+p)
+        with open(args.model_dir+p+'_model.json') as f:
+            model = model_from_json(f.read())
+        model.load_weights(args.model_dir+p+'_weights.h5')
     #-------------------------------
     # Perform prediction
     #-------------------------------
-    logging.info('Performing prediction ')
-    y_pred = model.predict(np.expand_dims(x, axis=0), verbose=1)
-    print(y_pred)
-    y = report_prediction(y_pred, args.input)
+        logging.info('Performing prediction for '+p)
+        y_pred = model.predict(np.expand_dims(x, axis=0), verbose=0)
+        predictions.append(report_prediction(y_pred, p))
+    #-------------------------------
+    # Prepare output
+    #-------------------------------
+    y = pd.concat(predictions)
     y.to_csv(args.output, index=False)
     # done
     return(0)

@@ -47,15 +47,14 @@
 
 2. 使用二進位的 QPESUMS  資料以及訓練好的模型進行 QPE
 [語法]
-  > python cwb_qpesums_predict.py -i [輸入：QPESUMS 二進位檔] -o [輸出：預測結果] -m [輸入：預先訓練好的機器學習模型]
-
+  > python cwb_qpesums_predict.py -i [輸入：QPESUMS 二進位檔] -o [輸出：預測結果]
 [範例]
-  > python cwb_qpesums_predict.py -i qpesums_lst_hwc\2016071515.npy -o 2016071515.csv -m model/full_model
+  > python cwb_qpesums_predict.py -i qpesums_lst_hwc\2016071515.npy -o 2016071515.csv
 
 
 3. 預報結果判讀：
 預報輸出為 .csv 格式，包含：
-    input: 輸入檔
+    id: 測站代號，TPEALL 為整個台北地區
     y0~y4: 參考用
     prediction: QPE 結果是否大於 30mm/hr
 
