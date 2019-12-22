@@ -95,10 +95,10 @@ def evaluate_binary(yt, yp, stid=None, ythresh=30.):
     return(output)
 
 # Function to give report for regression
-def evaluate_regression(y_true, y_pred, verbose=0):
+def evaluate_regression(y_true, y_pred, stid=None):
     import sklearn.metrics as metrics
     # Calculate measures
-    results = {}
+    results = {'id':stid}
     results['y_true_mean'] = y_true.mean()
     results['y_true_var'] = y_true.var()
     results['y_pred_mean'] = y_pred.mean()
@@ -108,15 +108,6 @@ def evaluate_regression(y_true, y_pred, verbose=0):
         results['corr'] = 0
     else:
         results['corr'] = np.corrcoef(y_true,y_pred)[0,1]
-    # Print results if verbose > 0
-    if verbose>0:
-        if verbose>1:
-            print('Mean of y_true: ' + str(results['y_true_mean']))
-            print('Variance of y_true: ' + str(results['y_true_var']))
-            print('Mean of y_pred: ' + str(results['y_pred_mean']))
-            print('Variance of y_pred: ' + str(results['y_pred_var']))
-        print('RMSE: ' + str(results['rmse']))
-        print('Corr: ' + str(results['corr']))
     # Return results
     return(results)
 
@@ -216,17 +207,15 @@ def main():
         logging.info('    Data dimension of X:(testing)')
         logging.info(x_test.shape)
         # Train model and test
-        reg = linear_model.SGDRegressor(loss='squared_loss', penalty='elasticnet', alpha=0.0001, l1_ratio=0.15)
+        reg = linear_model.SGDRegressor(loss='squared_loss', penalty='elasticnet', alpha=0.08, l1_ratio=0.10)
         reg.fit(x_train, y_to_log(y_train))
         yp_train = reg.predict(x_train)
         yp_test = reg.predict(x_test)
         # Evaluate
-        evtrain = evaluate_regression(y_train, log_to_y(yp_train))
-        evtrain['std'] = sid
+        evtrain = evaluate_regression(y_train, log_to_y(yp_train), stid=sid)
         report_train.append(evtrain)
         logging.info(evtrain)
-        evtest = evaluate_regression(y_test, log_to_y(yp_test))
-        evtest['std'] = sid
+        evtest = evaluate_regression(y_test, log_to_y(yp_test), stid=sid)
         report_test.append(evtest)
         logging.info(evtest)
     # Output results
