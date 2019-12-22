@@ -10,7 +10,7 @@ Description:
 --batch_size: the size of data batch for incremental processing, default=100.
 --randomseed: integer as the random seed, default="1234543"
 """
-import os, csv, logging, argparse, pickle, h5py
+import os, sys, csv, logging, argparse, pickle, h5py
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA, IncrementalPCA
