@@ -10,7 +10,7 @@ Group evaluation for Linear Regression with NN-Encoded QPESUMS.
 import sys, os, csv, logging, argparse, h5py
 import numpy as np
 import pandas as pd
-from sklearn import linear_model
+from sklearn import linear_model, svm
 
 __author__ = "Ting-Shuo Yo"
 __copyright__ = "Copyright 2019~2020, DataQualia Lab Co. Ltd."
@@ -163,6 +163,7 @@ def main():
     parser.add_argument('--xpath', '-x', help='the directory containing ebcoded QPESUMS data.')
     parser.add_argument('--ypath', '-y', help='the file containing the precipitation data.')
     parser.add_argument('--output', '-o', help='the prefix of output files.')
+    parser.add_argument('--yth', '-t', default=0., type=float, help='Threshold of Y for training.')
     parser.add_argument('--logy', '-g', default=0, type=int, choices=range(0, 2), help='Use Y in log-space.')
     parser.add_argument('--logfile', '-l', default=None, help='the log file.')
     args = parser.parse_args()
@@ -196,6 +197,13 @@ def main():
         logging.info(size_before_2016)
         y_train = y.iloc[:size_before_2016]
         x_train = x.iloc[:size_before_2016,:]
+        # Apply filter on training data
+        idx_filtered = y_train>args.yth
+        logging.info('    Filter y: '+str(args.yth))
+        logging.info(sum(idx_filtered))
+        y_train = y_train.loc[idx_filtered]
+        x_train = x_train.loc[idx_filtered,:]
+        # Reporting training/testing size
         logging.info('    Data dimension of Y:(training)')
         logging.info(y_train.shape)
         logging.info('    Data dimension of X: (training)')
@@ -207,7 +215,10 @@ def main():
         logging.info('    Data dimension of X:(testing)')
         logging.info(x_test.shape)
         # Train model and test
-        reg = linear_model.SGDRegressor(loss='squared_loss', penalty='elasticnet', alpha=0.08, l1_ratio=0.10)
+        reg = linear_model.SGDRegressor(loss='squared_loss', penalty='elasticnet', alpha=0.08, l1_ratio=0.15)
+        #reg = svm.SVR(kernel='poly', degree=2, gamma='scale', coef0=0.0, tol=0.0001, C=0.05, epsilon=0.25)
+        #reg = linear_model.LinearRegression(fit_intercept=True, normalize=True, copy_X=True, n_jobs=4)
+        #reg = linear_model.BayesianRidge(normalize=True)
         reg.fit(x_train, y_to_log(y_train))
         yp_train = reg.predict(x_train)
         yp_test = reg.predict(x_test)
@@ -220,6 +231,7 @@ def main():
         logging.info(evtest)
     # Output results
     pd.DataFrame(report_train).to_csv(args.output+'_train.csv', index=False)
+    logging.info(pd.DataFrame(report_test).describe())
     pd.DataFrame(report_test).to_csv(args.output+'_test.csv', index=False)
     # done
     return(0)
