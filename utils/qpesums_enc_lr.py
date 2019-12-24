@@ -112,20 +112,29 @@ def evaluate_regression(y_true, y_pred, stid=None):
     return(results)
 
 # Plot evaluation of regression
-def plot_regression(y_true, y_pred, verbose=0):
+def plot_regression(y_true, y_pred, output_prefix=None):
     import matplotlib.pyplot as plt
     # Show time series
     plt.subplot(2,1,1)
     plt.plot(y_true, label='true')
     plt.plot(y_pred, '--r', label='pred')
+    plt.ylim(0,80)
     plt.title('Time series')
     plt.legend()
-    #
+    # Show scatter plot
     plt.subplot(2,1,2)
     plt.scatter(y_pred, y_true)
+    plt.xlim(0,80)
+    plt.ylim(0,80)
     plt.title('Predictions vs Truth')
     plt.tight_layout()
-    return(plt)
+    # Save to file if specified
+    if not output_prefix is None:
+        plt.savefig(output_prefix+'.png')
+        plt.close()
+        return(0)
+    else:
+        return(plt)
 
 def y_to_log(y):
     ''' Convert the y to log(y+1). '''
@@ -138,24 +147,6 @@ def log_to_y(y):
     yori[yori<0.5] = 0.                          # Set the minimal values to 0.
     return(yori)
 
-# Create cross validation splits
-def create_CV_splits(iotable, k=5, ysegs=None, ylab='y', shuffle=False):
-    from sklearn.model_selection import StratifiedKFold, KFold
-    # Index of each fold
-    cvidx_train = []
-    cvidx_test = []
-    # If segmentation of y is not specified, use simple KFold
-    if ysegs is None:
-        kf = KFold(n_splits=k, random_state=None, shuffle=shuffle)
-        for idx_train, idx_test in kf.split(iotable['xuri']):
-            cvidx_train.append(idx_train)
-            cvidx_test.append(idx_test)
-    else:
-        kf = StratifiedKFold(n_splits=k, random_state=None, shuffle=shuffle)
-        for idx_train, idx_test in kf.split(iotable['xuri'], np.digitize(iotable[ylab], ysegs)):
-            cvidx_train.append(idx_train)
-            cvidx_test.append(idx_test)
-    return((cvidx_train, cvidx_test))
 #-----------------------------------------------------------------------
 def main():
     # Configure Argument Parser
@@ -163,7 +154,7 @@ def main():
     parser.add_argument('--xpath', '-x', help='the directory containing ebcoded QPESUMS data.')
     parser.add_argument('--ypath', '-y', help='the file containing the precipitation data.')
     parser.add_argument('--output', '-o', help='the prefix of output files.')
-    parser.add_argument('--yth', '-t', default=0., type=float, help='Threshold of Y for training.')
+    parser.add_argument('--yth', '-t', default=-1, type=float, help='Threshold of Y for training.')
     parser.add_argument('--logy', '-g', default=0, type=int, choices=range(0, 2), help='Use Y in log-space.')
     parser.add_argument('--logfile', '-l', default=None, help='the log file.')
     args = parser.parse_args()
@@ -174,49 +165,47 @@ def main():
         logging.basicConfig(level=logging.DEBUG)
     logging.debug(args)
     # IO data generation
-    iotab = loadIOTab(args.xpath, args.ypath, dropna=True)
+    iotab = loadIOTab(args.xpath, args.ypath, dropna=False)
+    logging.info('    number of total records listed: '+str(iotab.shape[0]))
     # Load Input
     x_full=[]
     for i in range(iotab.shape[0]):
         x_full.append(np.load(iotab['xuri'].iloc[i]).flatten())
     x_full = pd.DataFrame(np.array(x_full))
     x_full.index = list(iotab['date'])
+    logging.info('    number of total records read: '+str(x_full.shape[0]))
     # Loop through stations
     report_train = []
     report_test = []
     for sid in stdids:
         # Create iotable for the station
         logging.info('Station id: '+sid)
-        stdio = pd.merge(iotab.loc[:,['date', sid]], x_full, left_on='date', right_index=True).dropna().reset_index(drop=True)
+        stdio = iotab.loc[:,['date', sid]].merge(x_full, left_on='date', right_index=True).dropna().reset_index(drop=True)
         logging.info('    number of valid records: '+str(stdio.shape[0]))
         y = stdio[sid]
         x = stdio.iloc[:, 2:]
         # Split training and testing data
+        idx2016 = np.floor(stdio['date'].astype(float)/1000000.) == 2016
+        size_of_2016 = sum(idx2016)
         size_before_2016 = sum(stdio['date'].astype(int)<2016010100)
-        logging.info('    Data index before 2016')
-        logging.info(size_before_2016)
-        y_train = y.iloc[:size_before_2016]
-        x_train = x.iloc[:size_before_2016,:]
+        logging.info('    Data index of 2016: '+str(size_of_2016))
+        #y_train = y.iloc[:size_before_2016]
+        #x_train = x.iloc[:size_before_2016,:]
+        y_train = y.loc[~idx2016]
+        x_train = x.loc[~idx2016,:]
         # Apply filter on training data
         idx_filtered = y_train>args.yth
         logging.info('    Filter y: '+str(args.yth))
-        logging.info(sum(idx_filtered))
         y_train = y_train.loc[idx_filtered]
         x_train = x_train.loc[idx_filtered,:]
         # Reporting training/testing size
-        logging.info('    Data dimension of Y:(training)')
-        logging.info(y_train.shape)
-        logging.info('    Data dimension of X: (training)')
-        logging.info(x_train.shape)
-        y_test = y.iloc[size_before_2016:]
-        x_test = x.iloc[size_before_2016:,:]
-        logging.info('    Data dimension of Y:(testing)')
-        logging.info(y_test.shape)
-        logging.info('    Data dimension of X:(testing)')
-        logging.info(x_test.shape)
+        logging.info('    Data dimension of training data: '+str(x_train.shape[0]) + ', ' +str(x_train.shape[1]))
+        y_test = y.loc[idx2016].reset_index(drop=True)
+        x_test = x.loc[idx2016,:].reset_index(drop=True)
+        logging.info('    Data dimension of testing data: '+str(x_test.shape[0]) + ', ' +str(x_test.shape[1]))
         # Train model and test
-        reg = linear_model.SGDRegressor(loss='squared_loss', penalty='elasticnet', alpha=0.08, l1_ratio=0.15)
-        #reg = svm.SVR(kernel='poly', degree=2, gamma='scale', coef0=0.0, tol=0.0001, C=0.05, epsilon=0.25)
+        #reg = linear_model.SGDRegressor(loss='squared_loss', penalty='elasticnet', alpha=0.0001, l1_ratio=0.25)
+        reg = svm.SVR(kernel='poly', degree=2, gamma='scale', coef0=0.0, tol=0.0001, C=0.05, epsilon=0.25)
         #reg = linear_model.LinearRegression(fit_intercept=True, normalize=True, copy_X=True, n_jobs=4)
         #reg = linear_model.BayesianRidge(normalize=True)
         reg.fit(x_train, y_to_log(y_train))
@@ -229,6 +218,8 @@ def main():
         evtest = evaluate_regression(y_test, log_to_y(yp_test), stid=sid)
         report_test.append(evtest)
         logging.info(evtest)
+        # Making plot
+        #plot_regression(y_test, log_to_y(yp_test), output_prefix=str(sid))
     # Output results
     pd.DataFrame(report_train).to_csv(args.output+'_train.csv', index=False)
     logging.info(pd.DataFrame(report_test).describe())
