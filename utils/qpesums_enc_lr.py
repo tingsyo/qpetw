@@ -204,8 +204,8 @@ def main():
         x_test = x.loc[idx2016,:].reset_index(drop=True)
         logging.info('    Data dimension of testing data: '+str(x_test.shape[0]) + ', ' +str(x_test.shape[1]))
         # Train model and test
-        #reg = linear_model.SGDRegressor(loss='squared_loss', penalty='elasticnet', alpha=0.0001, l1_ratio=0.25)
-        reg = svm.SVR(kernel='poly', degree=2, gamma='scale', coef0=0.0, tol=0.0001, C=0.05, epsilon=0.25)
+        reg = linear_model.SGDRegressor(loss='squared_loss', penalty='elasticnet', alpha=0.0001, l1_ratio=0.25)
+        #reg = svm.SVR(kernel='poly', degree=2, gamma='scale', coef0=0.0, tol=0.0001, C=0.05, epsilon=0.25)
         #reg = linear_model.LinearRegression(fit_intercept=True, normalize=True, copy_X=True, n_jobs=4)
         #reg = linear_model.BayesianRidge(normalize=True)
         reg.fit(x_train, y_to_log(y_train))
@@ -219,7 +219,7 @@ def main():
         report_test.append(evtest)
         logging.info(evtest)
         # Making plot
-        #plot_regression(y_test, log_to_y(yp_test), output_prefix=str(sid))
+        plot_regression(y_test, log_to_y(yp_test), output_prefix=('lm_'+str(sid)))
     # Output results
     pd.DataFrame(report_train).to_csv(args.output+'_train.csv', index=False)
     logging.info(pd.DataFrame(report_test).describe())

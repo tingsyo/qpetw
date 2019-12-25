@@ -219,7 +219,7 @@ def main():
         report_test.append(evtest)
         logging.info(evtest)
         # Making plot
-        plot_regression(y_test, log_to_y(yp_test), output_prefix=str(sid))
+        plot_regression(y_test, log_to_y(yp_test), output_prefix=('svr_'+str(sid)))
     # Output results
     pd.DataFrame(report_train).to_csv(args.output+'_train.csv', index=False)
     logging.info(pd.DataFrame(report_test).describe())
