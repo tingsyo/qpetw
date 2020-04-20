@@ -31,6 +31,8 @@ vignettes/*.pdf
 # Temporary files created by R markdown
 *.utf8.md
 *.knit.md
+
+# User defined
 tmp
 data
 qpf
@@ -38,3 +40,6 @@ qpe
 */*.csv
 */*.log
 backup/*
+
+# Temporary files created by jupyter notebook
+.ipynb_checkpoints/*
