@@ -42,4 +42,4 @@ qpe
 backup/*
 
 # Temporary files created by jupyter notebook
-.ipynb_checkpoints/*
+.ipynb_checkpoints
