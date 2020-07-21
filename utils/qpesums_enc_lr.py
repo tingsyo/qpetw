@@ -177,6 +177,7 @@ def main():
     # Loop through stations
     report_train = []
     report_test = []
+    predictions = {}
     for sid in stdids:
         # Create iotable for the station
         logging.info('Station id: '+sid)
@@ -211,6 +212,8 @@ def main():
         reg.fit(x_train, y_to_log(y_train))
         yp_train = reg.predict(x_train)
         yp_test = reg.predict(x_test)
+        # Aggregate predictions
+        predictions[sid] = log_to_y(yp_train)
         # Evaluate
         evtrain = evaluate_regression(y_train, log_to_y(yp_train), stid=sid)
         report_train.append(evtrain)
@@ -224,6 +227,7 @@ def main():
     pd.DataFrame(report_train).to_csv(args.output+'_train.csv', index=False)
     logging.info(pd.DataFrame(report_test).describe())
     pd.DataFrame(report_test).to_csv(args.output+'_test.csv', index=False)
+    pd.DataFrame(predictions).to_csv(args.output+'_preds.csv', index=False)
     # done
     return(0)
     
